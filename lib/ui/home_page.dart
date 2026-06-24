@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../app_version.dart';
 import '../models/transfer_record.dart';
 import '../models/webdav_account.dart';
 import '../models/webdav_resource.dart';
@@ -234,6 +235,7 @@ class _HomePageState extends State<HomePage> {
         return SettingsPage(
           language: _language,
           strings: strings,
+          appVersion: AppVersion.displayVersion,
           downloadDirectory: _downloadDirectory,
           sessionUnlocked: widget.store.isSessionUnlocked,
           onLanguageChanged: _saveLanguage,
@@ -826,6 +828,7 @@ class SettingsPage extends StatelessWidget {
     super.key,
     required this.language,
     required this.strings,
+    required this.appVersion,
     required this.downloadDirectory,
     required this.sessionUnlocked,
     required this.onLanguageChanged,
@@ -837,6 +840,7 @@ class SettingsPage extends StatelessWidget {
 
   final AppLanguage language;
   final AppStrings strings;
+  final String appVersion;
   final String downloadDirectory;
   final bool sessionUnlocked;
   final ValueChanged<AppLanguage> onLanguageChanged;
@@ -985,6 +989,12 @@ class SettingsPage extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _runChangeMasterPassphrase(context),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(strings.version),
+                  subtitle: Text(appVersion),
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -2065,6 +2075,7 @@ class AppStrings {
     required this.masterPassphraseChanged,
     required this.masterPassphraseUnlocked,
     required this.masterPassphraseLocked,
+    required this.version,
     required this.github,
     required this.discussions,
     required this.serverUrl,
@@ -2189,6 +2200,7 @@ class AppStrings {
   final String masterPassphraseChanged;
   final String masterPassphraseUnlocked;
   final String masterPassphraseLocked;
+  final String version;
   final String github;
   final String discussions;
   final String serverUrl;
@@ -2413,6 +2425,7 @@ class AppStrings {
     masterPassphraseChanged: '主口令已更新',
     masterPassphraseUnlocked: '当前会话已解锁',
     masterPassphraseLocked: '当前会话未解锁',
+    version: '版本号',
     github: 'GitHub',
     discussions: '讨论',
     serverUrl: '服务地址',
@@ -2545,6 +2558,7 @@ class AppStrings {
     masterPassphraseChanged: 'Master passphrase updated',
     masterPassphraseUnlocked: 'Current session is unlocked',
     masterPassphraseLocked: 'Current session is locked',
+    version: 'Version',
     github: 'GitHub',
     discussions: 'Discussions',
     serverUrl: 'Server URL',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_version.dart';
 import 'ui/home_page.dart';
 
 const kAppButtonRadius = 4.0;
@@ -14,7 +15,7 @@ class XylosApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Xylos',
+      title: 'Xylos ${AppVersion.version}',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
