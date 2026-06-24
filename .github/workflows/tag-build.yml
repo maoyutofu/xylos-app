@@ -39,9 +39,13 @@ jobs:
     needs: prepare
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.22.2
       - name: Install dependencies
         run: flutter pub get
       - name: Build APK
@@ -73,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.22.2
       - name: Install Linux toolchain
         run: |
           sudo apt-get update
@@ -100,7 +104,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.22.2
       - name: Install dependencies
         run: flutter pub get
       - name: Build Windows
@@ -123,7 +127,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.22.2
       - name: Install dependencies
         run: flutter pub get
       - name: Build macOS
