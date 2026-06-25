@@ -178,16 +178,18 @@ jobs:
       - build-windows
       - build-macos
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: build/release-assets
       - name: Upload assets to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           GIT_TAG: ${{ needs.prepare.outputs.git_tag }}
         run: |
           set -eu
-          gh release view "$GIT_TAG" >/dev/null 2>&1 || gh release create "$GIT_TAG" --title "$GIT_TAG" --notes "Release $GIT_TAG"
+          gh release view "$GIT_TAG" --repo "$GH_REPO" >/dev/null 2>&1 || gh release create "$GIT_TAG" --repo "$GH_REPO" --title "$GIT_TAG" --notes "Release $GIT_TAG"
           mapfile -t files < <(find build/release-assets -type f | sort)
           test "${#files[@]}" -gt 0
-          gh release upload "$GIT_TAG" "${files[@]}" --clobber
+          gh release upload "$GIT_TAG" "${files[@]}" --repo "$GH_REPO" --clobber

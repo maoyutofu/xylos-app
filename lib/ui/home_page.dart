@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -2035,6 +2036,10 @@ class AppStrings {
     required this.uploadFromFiles,
     required this.uploadFromMedia,
     required this.uploadSucceeded,
+    required this.uploadBatchSucceededTemplate,
+    required this.uploadBatchResultTemplate,
+    required this.uploadBatchFailedFilesTemplate,
+    required this.uploadFailedFilesTitle,
     required this.localFileNotFound,
     required this.createDirectory,
     required this.createDirectorySucceeded,
@@ -2163,6 +2168,10 @@ class AppStrings {
   final String uploadFromFiles;
   final String uploadFromMedia;
   final String uploadSucceeded;
+  final String uploadBatchSucceededTemplate;
+  final String uploadBatchResultTemplate;
+  final String uploadBatchFailedFilesTemplate;
+  final String uploadFailedFilesTitle;
   final String localFileNotFound;
   final String createDirectory;
   final String createDirectorySucceeded;
@@ -2269,6 +2278,27 @@ class AppStrings {
 
   String downloadSucceeded(String path) {
     return downloadSucceededTemplate.replaceAll('{path}', path);
+  }
+
+  String uploadBatchSucceeded(int count) {
+    return uploadBatchSucceededTemplate.replaceAll('{count}', '$count');
+  }
+
+  String uploadBatchResult(int successCount, int failedCount) {
+    return uploadBatchResultTemplate
+        .replaceAll('{successCount}', '$successCount')
+        .replaceAll('{failedCount}', '$failedCount');
+  }
+
+  String uploadBatchFailedFiles(
+    int successCount,
+    int failedCount,
+    String fileNames,
+  ) {
+    return uploadBatchFailedFilesTemplate
+        .replaceAll('{successCount}', '$successCount')
+        .replaceAll('{failedCount}', '$failedCount')
+        .replaceAll('{fileNames}', fileNames);
   }
 
   String downloadAlreadyExists(String path) {
@@ -2391,6 +2421,11 @@ class AppStrings {
     uploadFromFiles: '从文件选择',
     uploadFromMedia: '从相册选择',
     uploadSucceeded: '上传完成',
+    uploadBatchSucceededTemplate: '已上传 {count} 个文件',
+    uploadBatchResultTemplate: '上传完成，成功 {successCount} 个，失败 {failedCount} 个',
+    uploadBatchFailedFilesTemplate:
+        '上传完成，成功 {successCount} 个，失败 {failedCount} 个。失败文件：{fileNames}',
+    uploadFailedFilesTitle: '上传失败文件',
     localFileNotFound: '无法读取所选文件',
     createDirectory: '新建目录',
     createDirectorySucceeded: '目录创建成功',
@@ -2523,6 +2558,12 @@ class AppStrings {
     uploadFromFiles: 'Choose from Files',
     uploadFromMedia: 'Choose from Photos',
     uploadSucceeded: 'Upload completed',
+    uploadBatchSucceededTemplate: 'Uploaded {count} files',
+    uploadBatchResultTemplate:
+        'Upload finished: {successCount} succeeded, {failedCount} failed',
+    uploadBatchFailedFilesTemplate:
+        'Upload finished: {successCount} succeeded, {failedCount} failed. Failed files: {fileNames}',
+    uploadFailedFilesTitle: 'Failed uploads',
     localFileNotFound: 'Unable to read the selected file',
     createDirectory: 'New Folder',
     createDirectorySucceeded: 'Folder created',
@@ -3020,6 +3061,7 @@ class FileBrowserPage extends StatefulWidget {
 }
 
 class _FileBrowserPageState extends State<FileBrowserPage> {
+  final ImagePicker _imagePicker = ImagePicker();
   var _path = '/';
   var _resources = <WebDavResource>[];
   var _loading = false;
@@ -3336,42 +3378,118 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   }
 
   Future<void> _uploadFile() async {
-    final result = _isMobilePlatform
-        ? await _pickUploadFileForMobile()
-        : await _pickUploadFile(_UploadSource.files);
-    if (result == null || result.files.isEmpty) {
+    final pickedUploads = _isMobilePlatform
+        ? await _pickUploadFilesForMobile()
+        : await _pickFileUploads();
+    await _uploadPickedFiles(pickedUploads);
+  }
+
+  Future<void> _uploadPickedFiles(List<_PickedUploadFile> pickedUploads) async {
+    if (pickedUploads.isEmpty) {
       return;
     }
+    final isBatch = pickedUploads.length > 1;
+    var successCount = 0;
+    var failedCount = 0;
+    final failedUploads = <_PickedUploadFile>[];
 
-    final pickedFile = result.files.single;
-    final remotePath = _joinRemotePath(_path, pickedFile.name);
-    final localPath = pickedFile.path ?? pickedFile.name;
-    final transfer = _createTransferRecord(
-      direction: TransferDirection.upload,
-      remotePath: remotePath,
-      localPath: localPath,
-    );
+    for (final pickedUpload in pickedUploads) {
+      final remotePath = _joinRemotePath(_path, pickedUpload.name);
+      final localPath = pickedUpload.path ?? pickedUpload.name;
+      final transfer = _createTransferRecord(
+        direction: TransferDirection.upload,
+        remotePath: remotePath,
+        localPath: localPath,
+      );
 
-    await _runMutation(
-      transfer: transfer,
-      action: () async {
-        final path = pickedFile.path;
-        if (path != null) {
-          await WebDavClient(widget.server).uploadFile(remotePath, File(path));
-          return;
+      final result = await _runMutation(
+        transfer: transfer,
+        action: () async {
+          final path = pickedUpload.path;
+          if (path != null) {
+            await WebDavClient(widget.server).uploadFile(remotePath, File(path));
+            return;
+          }
+
+          final bytes = pickedUpload.bytes;
+          if (bytes == null) {
+            throw FileSystemException(widget.strings.localFileNotFound);
+          }
+          await WebDavClient(widget.server).uploadBytes(remotePath, bytes);
+        },
+        successMessage: widget.strings.uploadSucceeded,
+        showSuccessSnackBar: !isBatch,
+      );
+      if (result.succeeded) {
+        successCount += 1;
+      } else {
+        failedCount += 1;
+        failedUploads.add(pickedUpload);
+      }
+    }
+    if (mounted && isBatch) {
+      final message = failedCount == 0
+          ? widget.strings.uploadBatchSucceeded(successCount)
+          : _uploadBatchFailureMessage(
+              successCount,
+              failedCount,
+              failedUploads.map((item) => item.name).toList(),
+            );
+      _showSnackBar(context, message);
+      if (failedCount > 0) {
+        final shouldRetry = await _showUploadFailedFilesDialog(
+          failedUploads.map((item) => item.name).toList(),
+        );
+        if (shouldRetry == true && mounted) {
+          await _uploadPickedFiles(failedUploads);
         }
+      }
+    }
+  }
 
-        final bytes = pickedFile.bytes;
-        if (bytes == null) {
-          throw FileSystemException(widget.strings.localFileNotFound);
-        }
-        await WebDavClient(widget.server).uploadBytes(remotePath, bytes);
-      },
-      successMessage: widget.strings.uploadSucceeded,
+  String _uploadBatchFailureMessage(
+    int successCount,
+    int failedCount,
+    List<String> failedNames,
+  ) {
+    final previewNames = failedNames.take(3).join(', ');
+    final hasMore = failedNames.length > 3;
+    final fileNames = hasMore ? '$previewNames...' : previewNames;
+    return widget.strings.uploadBatchFailedFiles(
+      successCount,
+      failedCount,
+      fileNames,
     );
   }
 
-  Future<FilePickerResult?> _pickUploadFileForMobile() async {
+  Future<bool?> _showUploadFailedFilesDialog(List<String> failedNames) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(widget.strings.uploadFailedFilesTitle),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Text(failedNames.join('\n')),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(widget.strings.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(widget.strings.retry),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<List<_PickedUploadFile>> _pickUploadFilesForMobile() async {
     final source = await showModalBottomSheet<_UploadSource>(
       context: context,
       builder: (context) {
@@ -3395,17 +3513,45 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       },
     );
     if (source == null) {
-      return null;
+      return const [];
     }
-    return _pickUploadFile(source);
+    return switch (source) {
+      _UploadSource.files => _pickFileUploads(),
+      _UploadSource.media => _pickMediaUploads(),
+    };
   }
 
-  Future<FilePickerResult?> _pickUploadFile(_UploadSource source) {
-    return FilePicker.platform.pickFiles(
-      allowMultiple: false,
+  Future<List<_PickedUploadFile>> _pickFileUploads() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
       withData: true,
-      type: source == _UploadSource.media ? FileType.media : FileType.any,
+      type: FileType.any,
     );
+    final pickedFiles = result?.files ?? const [];
+    if (pickedFiles.isEmpty) {
+      return const [];
+    }
+    return pickedFiles
+        .map(
+          (pickedFile) => _PickedUploadFile(
+            name: pickedFile.name,
+            path: pickedFile.path,
+            bytes: pickedFile.bytes,
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<_PickedUploadFile>> _pickMediaUploads() async {
+    final pickedFiles = await _imagePicker.pickMultipleMedia();
+    return pickedFiles
+        .map(
+          (pickedFile) => _PickedUploadFile(
+            name: pickedFile.name,
+            path: pickedFile.path,
+          ),
+        )
+        .toList();
   }
 
   Future<void> _createDirectory() async {
@@ -3790,10 +3936,11 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         message.contains('permission denied');
   }
 
-  Future<void> _runMutation({
+  Future<_MutationResult> _runMutation({
     TransferRecord? transfer,
     required Future<void> Function() action,
     required String successMessage,
+    bool showSuccessSnackBar = true,
   }) async {
     if (transfer != null) {
       await widget.onTransferChanged(transfer);
@@ -3814,10 +3961,13 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         );
       }
       if (!mounted) {
-        return;
+        return const _MutationResult.success();
       }
-      _showSnackBar(context, successMessage);
+      if (showSuccessSnackBar) {
+        _showSnackBar(context, successMessage);
+      }
       await _loadPath();
+      return const _MutationResult.success();
     } on WebDavException catch (error) {
       AppLogger.error('UI', 'file operation failed path=$_path', error);
       final message = widget.strings.webDavError(error);
@@ -3831,9 +3981,10 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         );
       }
       if (!mounted) {
-        return;
+        return _MutationResult.failure(message);
       }
       _showSnackBar(context, message);
+      return _MutationResult.failure(message);
     } on FileSystemException catch (error) {
       AppLogger.error('UI', 'local file operation failed', error);
       if (transfer != null) {
@@ -3846,9 +3997,10 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         );
       }
       if (!mounted) {
-        return;
+        return _MutationResult.failure(error.message);
       }
       _showSnackBar(context, error.message);
+      return _MutationResult.failure(error.message);
     } finally {
       if (mounted) {
         setState(() {
@@ -4122,6 +4274,33 @@ enum _FileAction {
 enum _UploadSource {
   files,
   media;
+}
+
+class _PickedUploadFile {
+  const _PickedUploadFile({
+    required this.name,
+    this.path,
+    this.bytes,
+  });
+
+  final String name;
+  final String? path;
+  final Uint8List? bytes;
+}
+
+class _MutationResult {
+  const _MutationResult._({
+    required this.succeeded,
+    this.message,
+  });
+
+  const _MutationResult.success() : this._(succeeded: true);
+
+  const _MutationResult.failure(String message)
+      : this._(succeeded: false, message: message);
+
+  final bool succeeded;
+  final String? message;
 }
 
 class FileResourcePreview extends StatelessWidget {
