@@ -10,19 +10,19 @@ Xylos WebDAV Client is a cross-platform WebDAV client built with Flutter, target
 
 This screen is used to manage WebDAV server connections, including adding, reviewing, and selecting saved server configurations.
 
-![Server management screen](./assets/servers.png)
+![Server management screen](./screenshots/servers.png)
 
 ### File List View
 
 This view is optimized for browsing remote files in a list layout, making it easier to inspect metadata and hierarchy.
 
-![File list view](./assets/files-list.png)
+![File list view](./screenshots/files-list.png)
 
 ### File Grid View
 
 This view presents files in a more visual grid layout, which works well for quick browsing in touch-oriented scenarios.
 
-![File grid view](./assets/files-grid.png)
+![File grid view](./screenshots/files-grid.png)
 
 ## Setup
 

@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   prepare:
@@ -62,12 +62,24 @@ jobs:
           --build-number=${{ needs.prepare.outputs.build_number }}
           --dart-define=APP_VERSION=${{ needs.prepare.outputs.app_version }}
           --dart-define=APP_BUILD_NUMBER=${{ needs.prepare.outputs.build_number }}
+      - name: Prepare Android artifacts
+        run: |
+          set -eu
+          mkdir -p build/release/android/apk build/release/android/bundle
+          cp build/app/outputs/flutter-apk/*.apk "build/release/android/apk/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.apk"
+          cp build/app/outputs/bundle/release/*.aab "build/release/android/bundle/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.aab"
       - uses: actions/upload-artifact@v4
         with:
           name: xylos-android-${{ needs.prepare.outputs.git_tag }}
-          path: |
-            build/app/outputs/flutter-apk/*.apk
-            build/app/outputs/bundle/release/*.aab
+          path: build/release/android/*
+      - name: Upload Android assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_TAG: ${{ needs.prepare.outputs.git_tag }}
+        run: |
+          set -eu
+          gh release view "$GIT_TAG" >/dev/null 2>&1 || gh release create "$GIT_TAG" --title "$GIT_TAG" --notes "Release $GIT_TAG"
+          gh release upload "$GIT_TAG" build/release/android/apk/*.apk build/release/android/bundle/*.aab --clobber
 
   build-linux:
     name: Build Linux

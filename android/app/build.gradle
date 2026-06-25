@@ -23,6 +23,8 @@ if (flutterVersionName == null) {
     flutterVersionName = "1.0"
 }
 
+def appArtifactName = "xylos"
+
 android {
     namespace = "space.xylos.app"
     compileSdk = flutter.compileSdkVersion
@@ -49,6 +51,14 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            if (variant.buildType.name == "release") {
+                outputFileName = "${appArtifactName}-${variant.versionName}+${variant.versionCode}.apk"
+            }
         }
     }
 }

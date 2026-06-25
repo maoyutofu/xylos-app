@@ -201,8 +201,8 @@ void main() {
       trustSelfSignedCert: false,
     );
 
-    await AccountStore().unlockSession('test-passphrase');
-    await AccountStore().saveServers([server]);
+    await const AccountStore().unlockSession('test-passphrase');
+    await const AccountStore().saveServers([server]);
 
     final prefs = await SharedPreferences.getInstance();
     final values = prefs.getStringList('xylos.servers.v1')!;
@@ -212,10 +212,10 @@ void main() {
     expect(vault, isNotNull);
     expect(vault, isNot(contains('password')));
 
-    final loaded = await AccountStore().loadServers();
+    final loaded = await const AccountStore().loadServers();
     expect(loaded.single.secret, isEmpty);
-    await AccountStore().unlockSession('test-passphrase');
-    final hydrated = await AccountStore().hydrateServer(loaded.single);
+    await const AccountStore().unlockSession('test-passphrase');
+    final hydrated = await const AccountStore().hydrateServer(loaded.single);
     expect(hydrated.secret, 'password');
   });
 

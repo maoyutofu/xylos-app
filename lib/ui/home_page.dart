@@ -123,9 +123,13 @@ class _HomePageState extends State<HomePage> {
                   selectedIndex: _selectedIndex,
                   onDestinationSelected: _selectDestination,
                   labelType: NavigationRailLabelType.all,
-                  leading: const Padding(
-                    padding: EdgeInsets.only(top: 16, bottom: 20),
-                    child: Icon(Icons.storage, size: 28),
+                  leading: Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 20),
+                    child: Image.asset(
+                      'assets/icon.png',
+                      width: 32,
+                      height: 32,
+                    ),
                   ),
                   destinations: [
                     NavigationRailDestination(
