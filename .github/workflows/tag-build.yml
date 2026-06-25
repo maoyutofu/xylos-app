@@ -55,19 +55,11 @@ jobs:
           --build-number=${{ needs.prepare.outputs.build_number }}
           --dart-define=APP_VERSION=${{ needs.prepare.outputs.app_version }}
           --dart-define=APP_BUILD_NUMBER=${{ needs.prepare.outputs.build_number }}
-      - name: Build App Bundle
-        run: >
-          flutter build appbundle --release
-          --build-name=${{ needs.prepare.outputs.app_version }}
-          --build-number=${{ needs.prepare.outputs.build_number }}
-          --dart-define=APP_VERSION=${{ needs.prepare.outputs.app_version }}
-          --dart-define=APP_BUILD_NUMBER=${{ needs.prepare.outputs.build_number }}
       - name: Prepare Android artifacts
         run: |
           set -eu
           mkdir -p build/release/android
           cp build/app/outputs/flutter-apk/*.apk "build/release/android/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.apk"
-          cp build/app/outputs/bundle/release/*.aab "build/release/android/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.aab"
       - uses: actions/upload-artifact@v4
         with:
           name: xylos-android-${{ needs.prepare.outputs.git_tag }}
