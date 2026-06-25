@@ -65,21 +65,13 @@ jobs:
       - name: Prepare Android artifacts
         run: |
           set -eu
-          mkdir -p build/release/android/apk build/release/android/bundle
-          cp build/app/outputs/flutter-apk/*.apk "build/release/android/apk/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.apk"
-          cp build/app/outputs/bundle/release/*.aab "build/release/android/bundle/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.aab"
+          mkdir -p build/release/android
+          cp build/app/outputs/flutter-apk/*.apk "build/release/android/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.apk"
+          cp build/app/outputs/bundle/release/*.aab "build/release/android/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}.aab"
       - uses: actions/upload-artifact@v4
         with:
           name: xylos-android-${{ needs.prepare.outputs.git_tag }}
           path: build/release/android/*
-      - name: Upload Android assets to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GIT_TAG: ${{ needs.prepare.outputs.git_tag }}
-        run: |
-          set -eu
-          gh release view "$GIT_TAG" >/dev/null 2>&1 || gh release create "$GIT_TAG" --title "$GIT_TAG" --notes "Release $GIT_TAG"
-          gh release upload "$GIT_TAG" build/release/android/apk/*.apk build/release/android/bundle/*.aab --clobber
 
   build-linux:
     name: Build Linux
@@ -103,10 +95,15 @@ jobs:
           --build-number=${{ needs.prepare.outputs.build_number }}
           --dart-define=APP_VERSION=${{ needs.prepare.outputs.app_version }}
           --dart-define=APP_BUILD_NUMBER=${{ needs.prepare.outputs.build_number }}
+      - name: Prepare Linux artifact
+        run: |
+          set -eu
+          mkdir -p build/release/linux
+          tar -C build/linux/x64/release/bundle -czf "build/release/linux/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}-linux-x64.tar.gz" .
       - uses: actions/upload-artifact@v4
         with:
           name: xylos-linux-${{ needs.prepare.outputs.git_tag }}
-          path: build/linux/**/release/bundle/**
+          path: build/release/linux/*.tar.gz
 
   build-windows:
     name: Build Windows
@@ -131,10 +128,15 @@ jobs:
           --build-number=${{ needs.prepare.outputs.build_number }}
           --dart-define=APP_VERSION=${{ needs.prepare.outputs.app_version }}
           --dart-define=APP_BUILD_NUMBER=${{ needs.prepare.outputs.build_number }}
+      - name: Prepare Windows artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/release/windows
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "build/release/windows/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}-windows-x64.zip" -Force
       - uses: actions/upload-artifact@v4
         with:
           name: xylos-windows-${{ needs.prepare.outputs.git_tag }}
-          path: build/windows/x64/runner/Release/**
+          path: build/release/windows/*.zip
 
   build-macos:
     name: Build macOS
@@ -154,7 +156,38 @@ jobs:
           --build-number=${{ needs.prepare.outputs.build_number }}
           --dart-define=APP_VERSION=${{ needs.prepare.outputs.app_version }}
           --dart-define=APP_BUILD_NUMBER=${{ needs.prepare.outputs.build_number }}
+      - name: Prepare macOS artifact
+        run: |
+          set -eu
+          mkdir -p build/release/macos
+          app_path="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          test -n "$app_path"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "build/release/macos/xylos-${{ needs.prepare.outputs.app_version }}+${{ needs.prepare.outputs.build_number }}-macos.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: xylos-macos-${{ needs.prepare.outputs.git_tag }}
-          path: build/macos/Build/Products/Release/*.app
+          path: build/release/macos/*.zip
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build-android
+      - build-linux
+      - build-windows
+      - build-macos
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: build/release-assets
+      - name: Upload assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_TAG: ${{ needs.prepare.outputs.git_tag }}
+        run: |
+          set -eu
+          gh release view "$GIT_TAG" >/dev/null 2>&1 || gh release create "$GIT_TAG" --title "$GIT_TAG" --notes "Release $GIT_TAG"
+          mapfile -t files < <(find build/release-assets -type f | sort)
+          test "${#files[@]}" -gt 0
+          gh release upload "$GIT_TAG" "${files[@]}" --clobber
