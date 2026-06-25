@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/transfer_record.dart';
@@ -174,8 +176,8 @@ class AccountStore {
     }
     return servers
         .map(
-          (server) =>
-              server.copyWith(secret: _sessionSecrets[server.id] ?? server.secret),
+          (server) => server.copyWith(
+              secret: _sessionSecrets[server.id] ?? server.secret),
         )
         .toList();
   }
@@ -239,9 +241,16 @@ class AccountStore {
     final prefs = await SharedPreferences.getInstance();
     final savedDirectory = prefs.getString(_downloadDirectoryKey);
     if (savedDirectory != null && savedDirectory.trim().isNotEmpty) {
-      return savedDirectory;
+      final directory = savedDirectory.trim();
+      try {
+        await Directory(directory).create(recursive: true);
+        return directory;
+      } on FileSystemException {
+        // Fall back to a platform-managed directory on mobile when a previously
+        // persisted path is no longer writable.
+      }
     }
-    return defaultDownloadDirectory;
+    return resolveDefaultDownloadDirectory();
   }
 
   Future<void> saveDownloadDirectory(String directory) async {
@@ -298,5 +307,31 @@ class AccountStore {
       return '${home}xylos_appdata';
     }
     return '$home${Platform.pathSeparator}xylos_appdata';
+  }
+
+  static Future<String> resolveDefaultDownloadDirectory() async {
+    try {
+      late final String path;
+      if (Platform.isAndroid) {
+        final externalDirectory = await getExternalStorageDirectory();
+        if (externalDirectory != null) {
+          path = externalDirectory.path;
+        } else {
+          path = (await getApplicationDocumentsDirectory()).path;
+        }
+      } else if (Platform.isIOS) {
+        path = (await getApplicationDocumentsDirectory()).path;
+      } else {
+        path = defaultDownloadDirectory;
+      }
+      await Directory(path).create(recursive: true);
+      return path;
+    } on MissingPluginException {
+      return defaultDownloadDirectory;
+    } on UnsupportedError {
+      return defaultDownloadDirectory;
+    } on FileSystemException {
+      return defaultDownloadDirectory;
+    }
   }
 }

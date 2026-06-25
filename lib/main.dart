@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_version.dart';
+import 'services/account_store.dart';
 import 'ui/home_page.dart';
 
 const kAppButtonRadius = 4.0;
@@ -21,7 +22,9 @@ void main() {
 }
 
 class XylosApp extends StatelessWidget {
-  const XylosApp({super.key});
+  const XylosApp({super.key, this.store});
+
+  final AccountStore? store;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +70,7 @@ class XylosApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const HomePage(),
+      home: HomePage(store: store),
     );
   }
 }

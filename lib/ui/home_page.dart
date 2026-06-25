@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
@@ -78,7 +79,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       setState(() {
-        _downloadDirectory = AccountStore.defaultDownloadDirectory;
+        _downloadDirectory = '';
         _loading = false;
         _loadError = error.toString();
       });
@@ -350,7 +351,8 @@ class _HomePageState extends State<HomePage> {
     return widget.store.hydrateServersForSession(_servers);
   }
 
-  Future<String?> _promptSessionPassphrase({bool forceUnlockTitle = false}) async {
+  Future<String?> _promptSessionPassphrase(
+      {bool forceUnlockTitle = false}) async {
     final hasVault = await widget.store.hasSecretVault();
     if (!mounted) {
       return null;
@@ -594,16 +596,6 @@ class _HomePageState extends State<HomePage> {
     if (passphrase == null || passphrase.isEmpty) {
       throw const FormatException('Passphrase is required.');
     }
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: strings.exportServers,
-      fileName: 'xylos-servers.json',
-      type: FileType.custom,
-      allowedExtensions: const ['json'],
-    );
-    if (path == null || path.trim().isEmpty) {
-      return null;
-    }
-
     final plaintext = utf8.encode(
       jsonEncode({
         'servers': [
@@ -633,11 +625,22 @@ class _HomePageState extends State<HomePage> {
       'ciphertext': encrypted['ciphertext'],
       'mac': encrypted['mac'],
     };
-
-    await File(path).writeAsString(
-      const JsonEncoder.withIndent('  ').convert(payload),
-      flush: true,
+    final content = const JsonEncoder.withIndent('  ').convert(payload);
+    final exportBytes = Uint8List.fromList(utf8.encode(content));
+    final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: strings.exportServers,
+      fileName: 'xylos-servers.json',
+      type: FileType.custom,
+      allowedExtensions: const ['json'],
+      bytes: isMobilePlatform ? exportBytes : null,
     );
+    if (path == null || path.trim().isEmpty) {
+      return null;
+    }
+    if (!isMobilePlatform) {
+      await File(path).writeAsString(content, flush: true);
+    }
     return strings.exportSucceeded(path);
   }
 
@@ -657,14 +660,16 @@ class _HomePageState extends State<HomePage> {
       dialogTitle: strings.importServers,
       type: FileType.custom,
       allowedExtensions: const ['json'],
-      withData: false,
+      withData: true,
     );
-    final path = result?.files.single.path;
-    if (path == null || path.trim().isEmpty) {
+    final pickedFile = result?.files.single;
+    if (pickedFile == null) {
       return null;
     }
-
-    final content = await File(path).readAsString();
+    final path = pickedFile.path?.trim() ?? '';
+    final bytes = pickedFile.bytes;
+    final content =
+        bytes != null ? utf8.decode(bytes) : await File(path).readAsString();
     final decoded = jsonDecode(content);
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('Invalid config format.');
@@ -855,6 +860,8 @@ class SettingsPage extends StatelessWidget {
 
   static const double _downloadDirectoryControlHeight = 40;
 
+  bool get _supportsDirectoryPicker => !Platform.isAndroid && !Platform.isIOS;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -909,7 +916,9 @@ class SettingsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    strings.serverDownloadDirectory,
+                    _supportsDirectoryPicker
+                        ? strings.serverDownloadDirectory
+                        : strings.mobileDownloadDirectoryHint,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 12),
@@ -939,15 +948,17 @@ class SettingsPage extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        height: _downloadDirectoryControlHeight,
-                        child: FilledButton.icon(
-                          onPressed: () => _chooseDownloadDirectory(context),
-                          icon: const Icon(Icons.folder_open),
-                          label: Text(strings.chooseDirectory),
+                      if (_supportsDirectoryPicker) ...[
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          height: _downloadDirectoryControlHeight,
+                          child: FilledButton.icon(
+                            onPressed: () => _chooseDownloadDirectory(context),
+                            icon: const Icon(Icons.folder_open),
+                            label: Text(strings.chooseDirectory),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],
@@ -2021,6 +2032,8 @@ class AppStrings {
     required this.listView,
     required this.gridView,
     required this.uploadFile,
+    required this.uploadFromFiles,
+    required this.uploadFromMedia,
     required this.uploadSucceeded,
     required this.localFileNotFound,
     required this.createDirectory,
@@ -2034,6 +2047,7 @@ class AppStrings {
     required this.downloadAlreadyExistsTemplate,
     required this.openFailedTemplate,
     required this.serverDownloadDirectory,
+    required this.mobileDownloadDirectoryHint,
     required this.downloadDirectory,
     required this.downloadDirectoryNotSet,
     required this.chooseDirectory,
@@ -2146,6 +2160,8 @@ class AppStrings {
   final String listView;
   final String gridView;
   final String uploadFile;
+  final String uploadFromFiles;
+  final String uploadFromMedia;
   final String uploadSucceeded;
   final String localFileNotFound;
   final String createDirectory;
@@ -2159,6 +2175,7 @@ class AppStrings {
   final String downloadAlreadyExistsTemplate;
   final String openFailedTemplate;
   final String serverDownloadDirectory;
+  final String mobileDownloadDirectoryHint;
   final String downloadDirectory;
   final String downloadDirectoryNotSet;
   final String chooseDirectory;
@@ -2371,6 +2388,8 @@ class AppStrings {
     listView: '列表视图',
     gridView: '网格视图',
     uploadFile: '上传文件',
+    uploadFromFiles: '从文件选择',
+    uploadFromMedia: '从相册选择',
     uploadSucceeded: '上传完成',
     localFileNotFound: '无法读取所选文件',
     createDirectory: '新建目录',
@@ -2384,6 +2403,7 @@ class AppStrings {
     downloadAlreadyExistsTemplate: '文件已存在：{path}',
     openFailedTemplate: '打开文件失败：{message}',
     serverDownloadDirectory: '每个服务器会保存到该目录下的同名子目录',
+    mobileDownloadDirectoryHint: '移动端使用应用可访问的本地目录，上传文件请通过系统“文件”或“相册”选择器。',
     downloadDirectory: '下载目录',
     downloadDirectoryNotSet: '未设置下载目录',
     chooseDirectory: '选择目录',
@@ -2500,6 +2520,8 @@ class AppStrings {
     listView: 'List View',
     gridView: 'Grid View',
     uploadFile: 'Upload File',
+    uploadFromFiles: 'Choose from Files',
+    uploadFromMedia: 'Choose from Photos',
     uploadSucceeded: 'Upload completed',
     localFileNotFound: 'Unable to read the selected file',
     createDirectory: 'New Folder',
@@ -2515,6 +2537,8 @@ class AppStrings {
     openFailedTemplate: 'Failed to open file: {message}',
     serverDownloadDirectory:
         'Each server is saved in a matching subfolder under this folder',
+    mobileDownloadDirectoryHint:
+        'On mobile, downloads use an app-accessible local folder. Upload files through the system Files or Photos picker.',
     downloadDirectory: 'Download Folder',
     downloadDirectoryNotSet: 'Download folder is not set',
     chooseDirectory: 'Choose Folder',
@@ -2816,7 +2840,8 @@ class ServersPage extends StatelessWidget {
     BuildContext context, {
     WebDavAccount? server,
   }) async {
-    final hydratedServer = server == null ? null : await onHydrateServer(server);
+    final hydratedServer =
+        server == null ? null : await onHydrateServer(server);
     if (!context.mounted) {
       return;
     }
@@ -3003,6 +3028,8 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   var _sortAscending = true;
   var _viewMode = FileViewMode.list;
   String? _error;
+
+  bool get _isMobilePlatform => Platform.isAndroid || Platform.isIOS;
 
   @override
   void initState() {
@@ -3309,10 +3336,9 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   }
 
   Future<void> _uploadFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
-      withData: true,
-    );
+    final result = _isMobilePlatform
+        ? await _pickUploadFileForMobile()
+        : await _pickUploadFile(_UploadSource.files);
     if (result == null || result.files.isEmpty) {
       return;
     }
@@ -3342,6 +3368,43 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         await WebDavClient(widget.server).uploadBytes(remotePath, bytes);
       },
       successMessage: widget.strings.uploadSucceeded,
+    );
+  }
+
+  Future<FilePickerResult?> _pickUploadFileForMobile() async {
+    final source = await showModalBottomSheet<_UploadSource>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.folder_open),
+                title: Text(widget.strings.uploadFromFiles),
+                onTap: () => Navigator.of(context).pop(_UploadSource.files),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: Text(widget.strings.uploadFromMedia),
+                onTap: () => Navigator.of(context).pop(_UploadSource.media),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (source == null) {
+      return null;
+    }
+    return _pickUploadFile(source);
+  }
+
+  Future<FilePickerResult?> _pickUploadFile(_UploadSource source) {
+    return FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      withData: true,
+      type: source == _UploadSource.media ? FileType.media : FileType.any,
     );
   }
 
@@ -3450,41 +3513,45 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   }
 
   Future<DownloadResult?> _downloadResource(WebDavResource resource) async {
-    final directoryPath = widget.downloadDirectory.trim();
+    final directoryPath = await _resolveDownloadDirectoryPath();
     if (directoryPath.isEmpty) {
-      final selected = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: widget.strings.chooseDirectory,
-      );
-      if (selected == null || selected.trim().isEmpty) {
-        if (mounted) {
-          _showSnackBar(context, widget.strings.downloadDirectoryRequired);
-        }
-        return null;
+      if (mounted) {
+        _showSnackBar(context, widget.strings.downloadDirectoryRequired);
       }
-      widget.onDownloadDirectoryChanged(selected);
-      return _downloadToDirectory(resource, selected);
+      return null;
     }
-
     return _downloadToDirectory(resource, directoryPath);
   }
 
   Future<DownloadResult?> _downloadDirectory(WebDavResource resource) async {
-    final directoryPath = widget.downloadDirectory.trim();
+    final directoryPath = await _resolveDownloadDirectoryPath();
     if (directoryPath.isEmpty) {
-      final selected = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: widget.strings.chooseDirectory,
-      );
-      if (selected == null || selected.trim().isEmpty) {
-        if (mounted) {
-          _showSnackBar(context, widget.strings.downloadDirectoryRequired);
-        }
-        return null;
+      if (mounted) {
+        _showSnackBar(context, widget.strings.downloadDirectoryRequired);
       }
-      widget.onDownloadDirectoryChanged(selected);
-      return _downloadDirectoryToRoot(resource, selected);
+      return null;
     }
-
     return _downloadDirectoryToRoot(resource, directoryPath);
+  }
+
+  Future<String> _resolveDownloadDirectoryPath() async {
+    final directoryPath = widget.downloadDirectory.trim();
+    if (directoryPath.isNotEmpty) {
+      return directoryPath;
+    }
+    if (_isMobilePlatform) {
+      final fallback = await AccountStore.resolveDefaultDownloadDirectory();
+      widget.onDownloadDirectoryChanged(fallback);
+      return fallback;
+    }
+    final selected = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: widget.strings.chooseDirectory,
+    );
+    if (selected == null || selected.trim().isEmpty) {
+      return '';
+    }
+    widget.onDownloadDirectoryChanged(selected);
+    return selected;
   }
 
   Future<DownloadResult?> _downloadDirectoryToRoot(
@@ -3673,7 +3740,10 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
           errorMessage: error.message,
         ),
       );
-      if (mounted && allowDirectoryRetry && _isPermissionDenied(error)) {
+      if (mounted &&
+          !_isMobilePlatform &&
+          allowDirectoryRetry &&
+          _isPermissionDenied(error)) {
         setState(() {
           _mutating = false;
         });
@@ -4047,6 +4117,11 @@ class FileActionsMenu extends StatelessWidget {
 enum _FileAction {
   download,
   delete;
+}
+
+enum _UploadSource {
+  files,
+  media;
 }
 
 class FileResourcePreview extends StatelessWidget {

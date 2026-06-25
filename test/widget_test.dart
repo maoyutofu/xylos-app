@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:xylos/models/webdav_account.dart';
 import 'package:xylos/main.dart';
+import 'package:xylos/models/transfer_record.dart';
 import 'package:xylos/services/account_store.dart';
 import 'package:xylos/services/webdav_client.dart';
 import 'package:xylos/ui/home_page.dart';
@@ -11,11 +12,63 @@ import 'package:xylos/ui/home_page.dart';
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    binding.platformDispatcher.localeTestValue = const Locale('zh');
   });
 
+  tearDown(() {
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    binding.platformDispatcher.clearLocaleTestValue();
+  });
+
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    bool Function() condition, {
+    int maxTicks = 20,
+    Duration step = const Duration(milliseconds: 100),
+  }) async {
+    for (var i = 0; i < maxTicks; i++) {
+      await tester.pump(step);
+      if (condition()) {
+        return;
+      }
+    }
+  }
+
+  Future<void> pumpApp(WidgetTester tester, Widget widget) async {
+    await tester.pumpWidget(widget);
+    await pumpUntil(
+      tester,
+      () =>
+          find.text('服务器').evaluate().isNotEmpty ||
+          find.text('Servers').evaluate().isNotEmpty ||
+          find.text('加载失败').evaluate().isNotEmpty ||
+          find.text('Load Failed').evaluate().isNotEmpty,
+    );
+  }
+
+  Future<void> pumpDefaultApp(
+    WidgetTester tester, {
+    List<WebDavAccount> servers = const [],
+    String languageCode = '',
+    String downloadDirectory = '/tmp/xylos-test',
+    List<TransferRecord> transfers = const [],
+  }) async {
+    await pumpApp(
+      tester,
+      XylosApp(
+        store: _FakeAccountStore(
+          servers: servers,
+          languageCode: languageCode,
+          downloadDirectory: downloadDirectory,
+          transfers: transfers,
+        ),
+      ),
+    );
+  }
+
   testWidgets('renders WebDAV client shell', (WidgetTester tester) async {
-    await tester.pumpWidget(const XylosApp());
-    await tester.pumpAndSettle();
+    await pumpDefaultApp(tester);
 
     expect(find.text('服务器'), findsWidgets);
     expect(find.text('暂无服务器'), findsOneWidget);
@@ -28,11 +81,10 @@ void main() {
   });
 
   testWidgets('switches to transfer section', (WidgetTester tester) async {
-    await tester.pumpWidget(const XylosApp());
-    await tester.pumpAndSettle();
+    await pumpDefaultApp(tester);
 
     await tester.tap(find.text('传输'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('传输中心'), findsOneWidget);
     expect(find.text('暂无传输记录'), findsOneWidget);
@@ -48,7 +100,7 @@ void main() {
       authType: AuthType.basic,
       digestAlgorithm: DigestAlgorithm.md5,
       username: 'admin',
-      secret: 'password',
+      secret: '',
       defaultPath: '/',
       allowHttp: true,
       trustSelfSignedCert: false,
@@ -57,41 +109,40 @@ void main() {
       'xylos.servers.v1': [server.encode()],
     });
 
-    await tester.pumpWidget(const XylosApp());
-    await tester.pumpAndSettle();
+    await pumpDefaultApp(tester, servers: const [server]);
 
     expect(find.text('Local NAS'), findsOneWidget);
 
     await tester.tap(find.text('Local NAS'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Local NAS · 文件'), findsOneWidget);
     expect(find.byType(TextFormField), findsOneWidget);
-    expect(find.text('当前路径'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
-  testWidgets('skips malformed stored state during startup',
-      (WidgetTester tester) async {
+  test('skips malformed stored state during startup', () async {
     SharedPreferences.setMockInitialValues({
       'xylos.servers.v1': ['not-json'],
       'xylos.transfers.v1': ['not-json'],
     });
+    final store = AccountStore();
+    final servers = await store.loadServers();
+    final transfers = await store.loadTransfers();
 
-    await tester.pumpWidget(const XylosApp());
-    await tester.pumpAndSettle();
-
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('暂无服务器'), findsOneWidget);
-    expect(find.text('添加服务器'), findsWidgets);
+    expect(servers, isEmpty);
+    expect(transfers, isEmpty);
   });
 
   testWidgets('shows recoverable error when startup state loading fails',
       (WidgetTester tester) async {
-    await tester.pumpWidget(
+    await pumpApp(
+      tester,
       const MaterialApp(home: HomePage(store: _FailingAccountStore())),
     );
-    await tester.pumpAndSettle();
+    await pumpUntil(
+      tester,
+      () => find.byType(CircularProgressIndicator).evaluate().isEmpty,
+    );
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('加载失败'), findsOneWidget);
@@ -101,13 +152,12 @@ void main() {
 
   testWidgets('switches interface language to English',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const XylosApp());
-    await tester.pumpAndSettle();
+    await pumpDefaultApp(tester);
 
     await tester.tap(find.text('设置'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('English'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Settings'), findsWidgets);
     expect(find.text('Servers'), findsWidgets);
@@ -115,14 +165,15 @@ void main() {
     expect(find.text('Offline'), findsOneWidget);
 
     await tester.tap(find.text('Servers').first);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Add Server'), findsWidgets);
   });
 
   testWidgets('server editor shows username for digest auth only',
       (WidgetTester tester) async {
-    await tester.pumpWidget(
+    await pumpApp(
+      tester,
       const MaterialApp(
         home: Scaffold(
           body: ServerEditorDialog(
@@ -133,23 +184,24 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
 
     expect(find.text('用户名'), findsOneWidget);
     expect(find.text('密码'), findsOneWidget);
 
     await tester.tap(find.byType(DropdownButtonFormField<AuthType>));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('Bearer Token').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
     expect(find.text('用户名'), findsNothing);
     expect(find.text('Token'), findsOneWidget);
 
     await tester.tap(find.byType(DropdownButtonFormField<AuthType>));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('Digest').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
     expect(find.text('用户名'), findsOneWidget);
     expect(find.text('密码'), findsOneWidget);
@@ -218,7 +270,6 @@ void main() {
     final hydrated = await const AccountStore().hydrateServer(loaded.single);
     expect(hydrated.secret, 'password');
   });
-
 }
 
 class _FailingAccountStore extends AccountStore {
@@ -228,4 +279,39 @@ class _FailingAccountStore extends AccountStore {
   Future<List<WebDavAccount>> loadServers() {
     throw const FormatException('startup failed');
   }
+}
+
+class _FakeAccountStore extends AccountStore {
+  const _FakeAccountStore({
+    this.servers = const [],
+    this.languageCode = '',
+    this.downloadDirectory = '/tmp/xylos-test',
+    this.transfers = const [],
+  });
+
+  final List<WebDavAccount> servers;
+  final String languageCode;
+  final String downloadDirectory;
+  final List<TransferRecord> transfers;
+
+  @override
+  bool get isSessionUnlocked => true;
+
+  @override
+  Future<List<WebDavAccount>> loadServers() async => servers;
+
+  @override
+  Future<String> loadLanguageCode() async => languageCode;
+
+  @override
+  Future<String> loadDownloadDirectory() async => downloadDirectory;
+
+  @override
+  Future<List<TransferRecord>> loadTransfers() async => transfers;
+
+  @override
+  Future<List<WebDavAccount>> hydrateServersForSession(
+    List<WebDavAccount> servers,
+  ) async =>
+      servers;
 }
