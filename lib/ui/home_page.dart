@@ -3524,7 +3524,6 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   Future<List<_PickedUploadFile>> _pickFileUploads() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
-      withData: true,
       type: FileType.any,
     );
     final pickedFiles = result?.files ?? const [];
@@ -3543,7 +3542,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   }
 
   Future<List<_PickedUploadFile>> _pickMediaUploads() async {
-    final pickedFiles = await _imagePicker.pickMultipleMedia();
+    final pickedFiles = await _imagePicker.pickMultiImage();
     return pickedFiles
         .map(
           (pickedFile) => _PickedUploadFile(
