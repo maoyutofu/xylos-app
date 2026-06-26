@@ -21,13 +21,113 @@ import '../services/server_qr_payload.dart';
 import '../services/webdav_client.dart';
 
 const _mobileBreakpoint = 720.0;
-const _mobileBackground = Color(0xFFF7F4EC);
+const _mobileBackground = Color(0xFFFFFFFF);
 const _mobileSurface = Color(0xFFFFFFFF);
 const _mobilePrimary = Color(0xFF58C99F);
 const _mobilePrimarySoft = Color(0xFFC9F3E3);
 const _mobileText = Color(0xFF111111);
 const _mobileMuted = Color(0xFF6F716F);
 const _mobileBorder = Color(0xFFE9E7E0);
+const _settingsModuleBorder = Color(0xFFE4E6E8);
+
+ButtonStyle _primaryFilledButtonStyle() {
+  return FilledButton.styleFrom(
+    backgroundColor: _mobilePrimary,
+    foregroundColor: Colors.white,
+  );
+}
+
+ButtonStyle _largePrimaryFilledButtonStyle() {
+  return FilledButton.styleFrom(
+    backgroundColor: _mobilePrimary,
+    foregroundColor: Colors.white,
+    minimumSize: const Size(0, 46),
+    padding: const EdgeInsets.symmetric(horizontal: 22),
+    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+  );
+}
+
+ButtonStyle _largePrimaryOutlinedButtonStyle() {
+  return OutlinedButton.styleFrom(
+    foregroundColor: _mobilePrimary,
+    minimumSize: const Size(0, 46),
+    padding: const EdgeInsets.symmetric(horizontal: 22),
+    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+    side: const BorderSide(color: _mobilePrimary),
+  );
+}
+
+ButtonStyle _primaryTextButtonStyle() {
+  return TextButton.styleFrom(foregroundColor: _mobilePrimary);
+}
+
+InputDecoration _primaryOutlinedInputDecoration(String label) {
+  const border = OutlineInputBorder(
+    borderSide: BorderSide(color: _mobilePrimary),
+  );
+  return InputDecoration(
+    labelText: label,
+    enabledBorder: border,
+    focusedBorder: border,
+  );
+}
+
+PopupMenuItem<T> _menuItem<T>({
+  required T value,
+  required IconData icon,
+  required String title,
+  bool destructive = false,
+}) {
+  final color = destructive ? const Color(0xFFC84B4B) : _mobileText;
+  return PopupMenuItem<T>(
+    value: value,
+    height: 42,
+    padding: const EdgeInsets.symmetric(horizontal: 6),
+    child: Builder(
+      builder: (context) {
+        final states = MaterialStatesController.maybeOf(context)?.value ?? {};
+        final activeBackground = destructive
+            ? const Color(0xFFFDECEC)
+            : const Color(0xFFEAF8F2);
+        final pressedBackground = destructive
+            ? const Color(0xFFF8DADA)
+            : const Color(0xFFD7F1E6);
+        final background = states.contains(WidgetState.pressed)
+            ? pressedBackground
+            : states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.focused)
+              ? activeBackground
+              : Colors.transparent;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, AccountStore? store})
@@ -67,7 +167,13 @@ class _HomePageState extends State<HomePage> {
       final servers = await widget.store.loadServers();
       final languageCode = await widget.store.loadLanguageCode();
       final downloadDirectory = await widget.store.loadDownloadDirectory();
-      final transfers = await widget.store.loadTransfers();
+      final loadedTransfers = await widget.store.loadTransfers();
+      final transfers = loadedTransfers.map(_recoverStaleTransfer).toList();
+      if (loadedTransfers.any(
+        (transfer) => transfer.status == TransferStatus.running,
+      )) {
+        await widget.store.saveTransfers(transfers);
+      }
       AppLogger.debug(
         'UI',
         'loaded state servers=${servers.length} transfers=${transfers.length} language=$languageCode downloadDirectorySet=${downloadDirectory.isNotEmpty}',
@@ -401,6 +507,7 @@ class _HomePageState extends State<HomePage> {
                   child: Text(strings.cancel),
                 ),
                 FilledButton(
+                  style: _primaryFilledButtonStyle(),
                   onPressed: () {
                     final passphrase = passphraseController.text;
                     if (passphrase.isEmpty) {
@@ -757,6 +864,17 @@ class _HomePageState extends State<HomePage> {
     await widget.store.saveTransfers(_transfers);
   }
 
+  TransferRecord _recoverStaleTransfer(TransferRecord transfer) {
+    if (transfer.status != TransferStatus.running) {
+      return transfer;
+    }
+    return transfer.copyWith(
+      status: TransferStatus.failed,
+      finishedAt: DateTime.now(),
+      errorMessage: strings.transferInterrupted,
+    );
+  }
+
   Future<void> _upsertTransfer(TransferRecord transfer) async {
     final index = _transfers.indexWhere((item) => item.id == transfer.id);
     setState(() {
@@ -839,6 +957,15 @@ class _HomePageState extends State<HomePage> {
           status: TransferStatus.failed,
           finishedAt: DateTime.now(),
           errorMessage: error.message,
+        ),
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error('UI', 'retry transfer failed', error, stackTrace);
+      await _upsertTransfer(
+        retryRecord.copyWith(
+          status: TransferStatus.failed,
+          finishedAt: DateTime.now(),
+          errorMessage: error.toString(),
         ),
       );
     }
@@ -940,18 +1067,28 @@ class _MobileNavigationItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(selected ? selectedIcon : icon, size: 22, color: color),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ColoredBox(
+            color: selected ? _mobilePrimary : Colors.transparent,
+            child: const SizedBox(height: 2, width: double.infinity),
+          ),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(selected ? selectedIcon : icon, size: 22, color: color),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -974,27 +1111,38 @@ class _MobileTopBar extends StatelessWidget {
             border: Border(bottom: BorderSide(color: _mobileBorder)),
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.asset('assets/icon.png', width: 34, height: 34),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Xylos',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _mobileText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: SizedBox(
+              height: 32,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: Image.asset(
+                        'assets/icon.png',
+                        width: 24,
+                        height: 24,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const Center(
+                    child: Text(
+                      'Xylos',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _mobileText,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1084,6 +1232,13 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Card(
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(3),
+              side: const BorderSide(color: _settingsModuleBorder),
+            ),
             margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -1117,6 +1272,13 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Card(
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(3),
+              side: const BorderSide(color: _settingsModuleBorder),
+            ),
             margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -1161,17 +1323,15 @@ class SettingsPage extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (_supportsDirectoryPicker) ...[
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          height: _downloadDirectoryControlHeight,
-                          child: FilledButton.icon(
-                            onPressed: () => _chooseDownloadDirectory(context),
-                            icon: const Icon(Icons.folder_open),
-                            label: Text(strings.chooseDirectory),
-                          ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        height: _downloadDirectoryControlHeight,
+                        child: FilledButton.icon(
+                          onPressed: () => _chooseDownloadDirectory(context),
+                          icon: const Icon(Icons.folder_open),
+                          label: Text(strings.chooseDirectory),
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ],
@@ -1180,6 +1340,13 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Card(
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(3),
+              side: const BorderSide(color: _settingsModuleBorder),
+            ),
             margin: EdgeInsets.zero,
             child: Column(
               children: [
@@ -1194,7 +1361,7 @@ class SettingsPage extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _runExport(context),
                 ),
-                const Divider(height: 1),
+                const Divider(height: 1, endIndent: 16),
                 ListTile(
                   leading: const Icon(Icons.download),
                   title: Text(strings.importServers),
@@ -1206,7 +1373,7 @@ class SettingsPage extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _runImport(context),
                 ),
-                const Divider(height: 1),
+                const Divider(height: 1, endIndent: 16),
                 ListTile(
                   leading: const Icon(Icons.password),
                   title: Text(strings.changeMasterPassphrase),
@@ -1218,29 +1385,16 @@ class SettingsPage extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _runChangeMasterPassphrase(context),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(strings.version),
-                  subtitle: Text(appVersion),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.code),
-                  title: Text(strings.github),
-                  subtitle: const Text('github.com/maoyutofu/xylos-app'),
-                  trailing: const Icon(Icons.open_in_new),
-                  onTap: () => _openExternalLink(context, _githubUri),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.forum_outlined),
-                  title: Text(strings.discussions),
-                  subtitle: const Text(
-                    'github.com/maoyutofu/xylos-app/discussions',
+                const Divider(height: 1, endIndent: 16),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _SettingsAboutSection(
+                    strings: strings,
+                    appVersion: appVersion,
+                    onOpenGithub: () => _openExternalLink(context, _githubUri),
+                    onOpenDiscussions: () =>
+                        _openExternalLink(context, _discussionsUri),
                   ),
-                  trailing: const Icon(Icons.open_in_new),
-                  onTap: () => _openExternalLink(context, _discussionsUri),
                 ),
               ],
             ),
@@ -1275,6 +1429,7 @@ class SettingsPage extends StatelessWidget {
                   ],
                   selected: {language},
                   style: ButtonStyle(
+                    foregroundColor: const WidgetStatePropertyAll(_mobileText),
                     backgroundColor: WidgetStateProperty.resolveWith((states) {
                       if (states.contains(WidgetState.selected)) {
                         return _mobilePrimarySoft;
@@ -1284,7 +1439,7 @@ class SettingsPage extends StatelessWidget {
                     side: const WidgetStatePropertyAll(BorderSide.none),
                     shape: WidgetStatePropertyAll(
                       RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
@@ -1308,41 +1463,26 @@ class SettingsPage extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            strings.downloadDirectory,
-                            style: const TextStyle(
-                              color: _mobileText,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            downloadDirectory.isEmpty
-                                ? strings.downloadDirectoryNotSet
-                                : downloadDirectory,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _mobileText,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        downloadDirectory.isEmpty
+                            ? strings.downloadDirectoryNotSet
+                            : downloadDirectory,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _mobileText,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                    if (_supportsDirectoryPicker)
-                      TextButton(
-                        onPressed: () => _chooseDownloadDirectory(context),
-                        style: TextButton.styleFrom(
-                          backgroundColor: _mobilePrimarySoft,
-                          foregroundColor: _mobilePrimary,
-                        ),
-                        child: Text(strings.chooseDirectory),
+                    TextButton(
+                      onPressed: () => _chooseDownloadDirectory(context),
+                      style: TextButton.styleFrom(
+                        backgroundColor: _mobilePrimarySoft,
+                        foregroundColor: _mobilePrimary,
                       ),
+                      child: Text(strings.chooseDirectory),
+                    ),
                   ],
                 ),
               ],
@@ -1378,21 +1518,13 @@ class SettingsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(strings.version, style: _mobileSettingsTitleStyle),
-                const SizedBox(height: 8),
-                Text(
-                  '${strings.version} $appVersion',
-                  style: const TextStyle(fontSize: 13, color: _mobileText),
-                ),
-                const SizedBox(height: 8),
-                _MobileLinkText(
-                  label: strings.github,
-                  onTap: () => _openExternalLink(context, _githubUri),
-                ),
-                const SizedBox(height: 8),
-                _MobileLinkText(
-                  label: strings.discussions,
-                  onTap: () => _openExternalLink(context, _discussionsUri),
+                _SettingsAboutSection(
+                  strings: strings,
+                  appVersion: appVersion,
+                  compact: true,
+                  onOpenGithub: () => _openExternalLink(context, _githubUri),
+                  onOpenDiscussions: () =>
+                      _openExternalLink(context, _discussionsUri),
                 ),
               ],
             ),
@@ -1487,16 +1619,151 @@ class _MobileSettingsCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: _mobileSurface,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        border: Border.all(color: _settingsModuleBorder),
+        borderRadius: BorderRadius.circular(3),
       ),
       child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
+class _SettingsAboutSection extends StatelessWidget {
+  const _SettingsAboutSection({
+    required this.strings,
+    required this.appVersion,
+    required this.onOpenGithub,
+    required this.onOpenDiscussions,
+    this.compact = false,
+  });
+
+  final AppStrings strings;
+  final String appVersion;
+  final VoidCallback onOpenGithub;
+  final VoidCallback onOpenDiscussions;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = compact
+        ? _mobileSettingsTitleStyle
+        : Theme.of(context).textTheme.titleMedium;
+    final versionStyle = TextStyle(
+      color: _mobileText,
+      fontSize: compact ? 20 : 24,
+      fontWeight: FontWeight.w700,
+      height: 1.1,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(strings.version, style: titleStyle),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F7F8),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.deployed_code_outlined, color: _mobileMuted),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Xylos',
+                    style: const TextStyle(
+                      color: _mobileText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(appVersion, style: versionStyle),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SettingsLinkRow(
+          icon: Icons.code,
+          title: strings.github,
+          subtitle: 'github.com/maoyutofu/xylos-app',
+          onTap: onOpenGithub,
+        ),
+        const SizedBox(height: 8),
+        _SettingsLinkRow(
+          icon: Icons.forum_outlined,
+          title: strings.discussions,
+          subtitle: 'github.com/maoyutofu/xylos-app/discussions',
+          onTap: onOpenDiscussions,
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsLinkRow extends StatelessWidget {
+  const _SettingsLinkRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(3),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: _settingsModuleBorder),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: _mobileMuted, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: _mobileText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _mobileMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.open_in_new, color: _mobileMuted, size: 16),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1528,35 +1795,6 @@ class _MobileSettingsTile extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right, color: _mobileMuted, size: 18),
       onTap: onTap,
-    );
-  }
-}
-
-class _MobileLinkText extends StatelessWidget {
-  const _MobileLinkText({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: _mobilePrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(width: 4),
-          const Icon(Icons.open_in_new, color: _mobilePrimary, size: 13),
-        ],
-      ),
     );
   }
 }
@@ -1710,6 +1948,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                   title: Text(strings.allowHttp),
                   subtitle: Text(strings.allowHttpDescription),
                   value: _allowHttp,
+                  activeColor: _mobilePrimary,
                   onChanged: (value) {
                     setState(() {
                       _allowHttp = value;
@@ -1721,6 +1960,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                   title: Text(strings.trustSelfSignedCert),
                   subtitle: Text(strings.trustSelfSignedCertDescription),
                   value: _trustSelfSignedCert,
+                  activeColor: _mobilePrimary,
                   onChanged: (value) {
                     setState(() {
                       _trustSelfSignedCert = value;
@@ -1738,6 +1978,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
           child: Text(strings.cancel),
         ),
         FilledButton(
+          style: _primaryFilledButtonStyle(),
           onPressed: _submit,
           child: Text(strings.save),
         ),
@@ -1865,62 +2106,64 @@ class TransfersPage extends StatelessWidget {
                     message: strings.transfersEmptyMessage,
                   )
                 : ListView.separated(
+                    padding: isMobileLayout
+                        ? const EdgeInsets.only(bottom: 20)
+                        : EdgeInsets.zero,
                     itemCount: transfers.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: isMobileLayout ? _mobileBorder : null,
+                      indent: isMobileLayout ? 36 : 44,
+                    ),
                     itemBuilder: (context, index) {
                       final transfer = transfers[index];
-                      return Card(
-                        margin: EdgeInsets.zero,
-                        child: ListTile(
-                          leading: Icon(_transferIcon(transfer.direction)),
-                          title: Text(_lastPathSegment(transfer.remotePath)),
-                          subtitle: Text(
-                            '${transfer.serverName} · ${_transferDirectionLabel(strings, transfer.direction)} · ${_transferStatusLabel(strings, transfer.status)}',
-                          ),
-                          trailing: PopupMenuButton<_TransferEntryAction>(
-                            tooltip: strings.openFolder,
-                            onSelected: (action) {
-                              switch (action) {
-                                case _TransferEntryAction.openFolder:
-                                  onOpenFolder(
-                                    _parentDirectoryPath(transfer.localPath),
-                                  );
-                                case _TransferEntryAction.retry:
-                                  onRetry(transfer);
-                                case _TransferEntryAction.clean:
-                                  onClean(transfer);
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: _TransferEntryAction.openFolder,
-                                child: ListTile(
-                                  leading: const Icon(Icons.folder_open),
-                                  title: Text(strings.openFolder),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
+                      return ListTile(
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: isMobileLayout ? 0 : 8,
+                          vertical: 0,
+                        ),
+                        leading: Icon(_transferIcon(transfer.direction)),
+                        title: Text(_lastPathSegment(transfer.remotePath)),
+                        subtitle: Text(
+                          '${transfer.serverName} · ${_transferDirectionLabel(strings, transfer.direction)} · ${_transferStatusLabel(strings, transfer.status)}',
+                        ),
+                        trailing: PopupMenuButton<_TransferEntryAction>(
+                          tooltip: strings.openFolder,
+                          onSelected: (action) {
+                            switch (action) {
+                              case _TransferEntryAction.openFolder:
+                                onOpenFolder(
+                                  _parentDirectoryPath(transfer.localPath),
+                                );
+                              case _TransferEntryAction.retry:
+                                onRetry(transfer);
+                              case _TransferEntryAction.clean:
+                                onClean(transfer);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            _menuItem(
+                              value: _TransferEntryAction.openFolder,
+                              icon: Icons.folder_open,
+                              title: strings.openFolder,
+                            ),
+                            const PopupMenuDivider(height: 1),
+                            if (transfer.status == TransferStatus.failed)
+                              _menuItem(
+                                value: _TransferEntryAction.retry,
+                                icon: Icons.refresh,
+                                title: strings.retry,
                               ),
-                              if (transfer.status == TransferStatus.failed)
-                                PopupMenuItem(
-                                  value: _TransferEntryAction.retry,
-                                  child: ListTile(
-                                    leading: const Icon(Icons.refresh),
-                                    title: Text(strings.retry),
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              PopupMenuItem(
-                                value: _TransferEntryAction.clean,
-                                child: ListTile(
-                                  leading: const Icon(
-                                    Icons.cleaning_services_outlined,
-                                  ),
-                                  title: Text(strings.clean),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ],
-                          ),
+                            if (transfer.status == TransferStatus.failed)
+                              const PopupMenuDivider(height: 1),
+                            _menuItem(
+                              value: _TransferEntryAction.clean,
+                              icon: Icons.cleaning_services_outlined,
+                              title: strings.clean,
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -1967,6 +2210,7 @@ class _OfflinePageState extends State<OfflinePage> {
   var _serverPath = '';
   var _rootPath = '';
   List<FileSystemEntity> _entries = const [];
+  var _mobileSearchQuery = '';
   String? _error;
 
   @override
@@ -1982,6 +2226,7 @@ class _OfflinePageState extends State<OfflinePage> {
     if (oldWidget.downloadDirectory != widget.downloadDirectory) {
       _rootPath = _normalizeLocalPath(widget.downloadDirectory);
       _serverPath = '';
+      _mobileSearchQuery = '';
       _loadRoot();
     }
   }
@@ -1993,18 +2238,21 @@ class _OfflinePageState extends State<OfflinePage> {
     final title = _serverPath.isEmpty
         ? widget.strings.offlineTitle
         : '${_lastPathSegment(_serverPath)} · ${widget.strings.localFilesTitle}';
+
+    if (isMobileLayout) {
+      return _buildMobile(context);
+    }
+
     final content = Padding(
-      padding: EdgeInsets.all(isMobileLayout ? 16 : 24),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isMobileLayout) ...[
-            SectionHeader(
-              title: title,
-              showTitle: _serverPath.isNotEmpty || showPageTitle,
-            ),
-            const SizedBox(height: 12),
-          ],
+          SectionHeader(
+            title: title,
+            showTitle: _serverPath.isNotEmpty || showPageTitle,
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               IconButton.filledTonal(
@@ -2037,18 +2285,66 @@ class _OfflinePageState extends State<OfflinePage> {
             ],
           ),
           const SizedBox(height: 16),
-          Expanded(child: _buildContent()),
+          Expanded(child: _buildContent(isMobileLayout: false)),
         ],
       ),
     );
 
-    if (isMobileLayout) {
-      return ColoredBox(color: _mobileBackground, child: content);
-    }
     return SafeArea(child: content);
   }
 
-  Widget _buildContent() {
+  Widget _buildMobile(BuildContext context) {
+    return ColoredBox(
+      color: _mobileSurface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _MobileTopBarIconButton(
+                  tooltip: widget.strings.parentDirectory,
+                  icon: Icons.arrow_back,
+                  onPressed: _canNavigateBack ? _navigateBack : null,
+                ),
+                const Spacer(),
+                _MobileTopBarIconButton(
+                  tooltip: widget.strings.refresh,
+                  icon: Icons.refresh,
+                  onPressed: _loading ? null : _loadRoot,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              onChanged: (value) {
+                setState(() {
+                  _mobileSearchQuery = value.trim().toLowerCase();
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: const Color(0xFFEDEDEF),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(3),
+                  borderSide: BorderSide.none,
+                ),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 9),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Expanded(child: _buildContent(isMobileLayout: true)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent({required bool isMobileLayout}) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -2067,13 +2363,52 @@ class _OfflinePageState extends State<OfflinePage> {
       );
     }
 
+    final visibleEntries = isMobileLayout && _mobileSearchQuery.isNotEmpty
+        ? _entries
+            .where(
+              (entry) => _lastPathSegment(
+                entry.path,
+              ).toLowerCase().contains(_mobileSearchQuery),
+            )
+            .toList()
+        : _entries;
+
+    if (visibleEntries.isEmpty) {
+      return EmptyState(
+        icon: Icons.download_done_outlined,
+        title: widget.strings.offlineEmptyTitle,
+        message: widget.strings.offlineEmptyMessage,
+      );
+    }
+
     return ListView.separated(
-      itemCount: _entries.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      padding: isMobileLayout ? const EdgeInsets.only(bottom: 20) : null,
+      itemCount: visibleEntries.length,
+      separatorBuilder: (_, __) => isMobileLayout
+          ? const Divider(height: 1, color: _mobileBorder, indent: 56)
+          : const Divider(height: 1),
       itemBuilder: (context, index) {
-        final entry = _entries[index];
+        final entry = visibleEntries[index];
         final stat = entry.statSync();
         final isDirectory = entry is Directory;
+        if (isMobileLayout) {
+          return _MobileOfflineFileRow(
+            entry: entry,
+            subtitle: isDirectory
+                ? widget.strings.directory
+                : _formatSize(stat.size, widget.strings),
+            strings: widget.strings,
+            onOpen: () => isDirectory
+                ? _openDirectory(entry.path)
+                : _openLocal(entry.path),
+            onOpenFolder: () {
+              final targetPath =
+                  isDirectory ? entry.path : _parentDirectoryPath(entry.path);
+              widget.onOpenFolder(targetPath);
+            },
+            onDelete: () => _deleteLocalEntry(entry),
+          );
+        }
         return ListTile(
           leading: _OfflineEntryPreview(entry: entry),
           title: Text(_lastPathSegment(entry.path)),
@@ -2096,21 +2431,17 @@ class _OfflinePageState extends State<OfflinePage> {
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(
+              _menuItem(
                 value: _OfflineEntryAction.openFolder,
-                child: ListTile(
-                  leading: const Icon(Icons.folder_open),
-                  title: Text(widget.strings.openFolder),
-                  contentPadding: EdgeInsets.zero,
-                ),
+                icon: Icons.folder_open,
+                title: widget.strings.openFolder,
               ),
-              PopupMenuItem(
+              const PopupMenuDivider(height: 1),
+              _menuItem(
                 value: _OfflineEntryAction.delete,
-                child: ListTile(
-                  leading: const Icon(Icons.delete_outline),
-                  title: Text(widget.strings.delete),
-                  contentPadding: EdgeInsets.zero,
-                ),
+                icon: Icons.delete_outline,
+                title: widget.strings.delete,
+                destructive: true,
               ),
             ],
           ),
@@ -2212,10 +2543,12 @@ class _OfflinePageState extends State<OfflinePage> {
           ),
           actions: [
             TextButton(
+              style: _primaryTextButtonStyle(),
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(widget.strings.cancel),
             ),
             FilledButton(
+              style: _primaryFilledButtonStyle(),
               onPressed: () => Navigator.of(context).pop(true),
               child: Text(widget.strings.delete),
             ),
@@ -2288,6 +2621,13 @@ enum _ServerTileAction {
   delete;
 }
 
+enum _ConnectionTestState {
+  unknown,
+  testing,
+  succeeded,
+  failed;
+}
+
 class _OfflineEntryPreview extends StatelessWidget {
   const _OfflineEntryPreview({required this.entry});
 
@@ -2299,6 +2639,7 @@ class _OfflineEntryPreview extends StatelessWidget {
     final path = entry.path;
     if (isDirectory) {
       return const _OfflinePreviewFrame(
+        padded: true,
         child: _LocalResourceIconPlaceholder(
           icon: Icons.folder,
           isDirectory: true,
@@ -2308,19 +2649,23 @@ class _OfflineEntryPreview extends StatelessWidget {
     }
     if (_isLocalImagePath(path)) {
       return _OfflinePreviewFrame(
-        child: Image.file(
-          File(path),
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const _LocalResourceIconPlaceholder(
-            icon: Icons.broken_image_outlined,
-            isDirectory: false,
-            iconSize: 24,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: Image.file(
+            File(path),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _LocalResourceIconPlaceholder(
+              icon: Icons.broken_image_outlined,
+              isDirectory: false,
+              iconSize: 24,
+            ),
           ),
         ),
       );
     }
     if (_isLocalVideoPath(path)) {
       return const _OfflinePreviewFrame(
+        padded: true,
         child: _LocalResourceIconPlaceholder(
           icon: Icons.videocam_outlined,
           isDirectory: false,
@@ -2329,6 +2674,7 @@ class _OfflineEntryPreview extends StatelessWidget {
       );
     }
     return const _OfflinePreviewFrame(
+      padded: true,
       child: _LocalResourceIconPlaceholder(
         icon: Icons.insert_drive_file_outlined,
         isDirectory: false,
@@ -2339,17 +2685,113 @@ class _OfflineEntryPreview extends StatelessWidget {
 }
 
 class _OfflinePreviewFrame extends StatelessWidget {
-  const _OfflinePreviewFrame({required this.child});
+  const _OfflinePreviewFrame({
+    required this.child,
+    this.padded = false,
+  });
 
   final Widget child;
+  final bool padded;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: 44,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: child,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _mobileSurface,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(padded ? 4 : 0),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileOfflineFileRow extends StatelessWidget {
+  const _MobileOfflineFileRow({
+    required this.entry,
+    required this.subtitle,
+    required this.strings,
+    required this.onOpen,
+    required this.onOpenFolder,
+    required this.onDelete,
+  });
+
+  final FileSystemEntity entry;
+  final String subtitle;
+  final AppStrings strings;
+  final VoidCallback onOpen;
+  final VoidCallback onOpenFolder;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onOpen,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          children: [
+            _OfflineEntryPreview(entry: entry),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _lastPathSegment(entry.path),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _mobileText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _mobileMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<_OfflineEntryAction>(
+              tooltip: strings.openFolder,
+              onSelected: (action) {
+                switch (action) {
+                  case _OfflineEntryAction.openFolder:
+                    onOpenFolder();
+                  case _OfflineEntryAction.delete:
+                    onDelete();
+                }
+              },
+              itemBuilder: (context) => [
+                _menuItem(
+                  value: _OfflineEntryAction.openFolder,
+                  icon: Icons.folder_open,
+                  title: strings.openFolder,
+                ),
+                const PopupMenuDivider(height: 1),
+                _menuItem(
+                  value: _OfflineEntryAction.delete,
+                  icon: Icons.delete_outline,
+                  title: strings.delete,
+                  destructive: true,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2392,22 +2834,26 @@ class EmptyState extends StatelessWidget {
     required this.title,
     required this.message,
     this.action,
+    this.showBorder = false,
   });
 
   final IconData icon;
   final String title;
   final String message;
   final Widget? action;
+  final bool showBorder;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: showBorder
+          ? BoxDecoration(
+              border: Border.all(color: colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(3),
+            )
+          : const BoxDecoration(),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -2548,7 +2994,7 @@ class _QrScannerDialogState extends State<QrScannerDialog> {
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(3),
                 child: MobileScanner(
                   onDetect: (capture) {
                     if (_handled) {
@@ -2682,6 +3128,7 @@ class AppStrings {
     required this.statusRunning,
     required this.statusSuccess,
     required this.statusFailed,
+    required this.transferInterrupted,
     required this.uploadLabel,
     required this.downloadLabel,
     required this.offlineEmptyTitle,
@@ -2822,6 +3269,7 @@ class AppStrings {
   final String statusRunning;
   final String statusSuccess;
   final String statusFailed;
+  final String transferInterrupted;
   final String uploadLabel;
   final String downloadLabel;
   final String offlineEmptyTitle;
@@ -3088,6 +3536,7 @@ class AppStrings {
     statusRunning: '进行中',
     statusSuccess: '成功',
     statusFailed: '失败',
+    transferInterrupted: '传输已中断',
     uploadLabel: '上传',
     downloadLabel: '下载',
     offlineEmptyTitle: '暂无本地文件',
@@ -3239,6 +3688,7 @@ class AppStrings {
     statusRunning: 'Running',
     statusSuccess: 'Success',
     statusFailed: 'Failed',
+    transferInterrupted: 'Transfer interrupted',
     uploadLabel: 'Upload',
     downloadLabel: 'Download',
     offlineEmptyTitle: 'No Local Files',
@@ -3494,13 +3944,6 @@ class ServersPage extends StatelessWidget {
             SectionHeader(
               title: strings.serversTitle,
               showTitle: showPageTitle,
-              action: _AddServerActions(
-                strings: strings,
-                supportsQrImport: supportsQrImport,
-                useMenu: !showPageTitle,
-                onManualEntry: () => _openEditor(context),
-                onScanQr: () => _runImportServerQr(context),
-              ),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -3518,9 +3961,21 @@ class ServersPage extends StatelessWidget {
                       ),
                     )
                   : ListView.separated(
-                      itemCount: servers.length,
+                      itemCount: servers.length + 1,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
+                        if (index == servers.length) {
+                          return Align(
+                            alignment: Alignment.center,
+                            child: _AddServerActions(
+                              strings: strings,
+                              supportsQrImport: supportsQrImport,
+                              useMenu: !showPageTitle,
+                              onManualEntry: () => _openEditor(context),
+                              onScanQr: () => _runImportServerQr(context),
+                            ),
+                          );
+                        }
                         final server = servers[index];
                         return ServerTile(
                           server: server,
@@ -3545,22 +4000,12 @@ class ServersPage extends StatelessWidget {
     required bool supportsQrImport,
   }) {
     return ColoredBox(
-      color: _mobileSurface,
+      color: _mobileBackground,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: _MobileAddServerButton(
-                strings: strings,
-                supportsQrImport: supportsQrImport,
-                onManualEntry: () => _openEditor(context),
-                onScanQr: () => _runImportServerQr(context),
-              ),
-            ),
-            const SizedBox(height: 14),
             Expanded(
               child: servers.isEmpty
                   ? EmptyState(
@@ -3576,9 +4021,20 @@ class ServersPage extends StatelessWidget {
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.only(bottom: 20),
-                      itemCount: servers.length,
+                      itemCount: servers.length + 1,
                       separatorBuilder: (_, __) => const SizedBox(height: 18),
                       itemBuilder: (context, index) {
+                        if (index == servers.length) {
+                          return Align(
+                            alignment: Alignment.center,
+                            child: _MobileAddServerButton(
+                              strings: strings,
+                              supportsQrImport: supportsQrImport,
+                              onManualEntry: () => _openEditor(context),
+                              onScanQr: () => _runImportServerQr(context),
+                            ),
+                          );
+                        }
                         final server = servers[index];
                         return ServerTile(
                           server: server,
@@ -3722,13 +4178,15 @@ class _AddServerActions extends StatelessWidget {
         children: [
           if (supportsQrImport)
             OutlinedButton.icon(
+              style: _largePrimaryOutlinedButtonStyle(),
               onPressed: onScanQr,
-              icon: const Icon(Icons.qr_code_scanner),
+              icon: const Icon(Icons.qr_code_scanner, size: 20),
               label: Text(strings.scanServerQr),
             ),
           FilledButton.icon(
+            style: _largePrimaryFilledButtonStyle(),
             onPressed: onManualEntry,
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, size: 20),
             label: Text(strings.addServer),
           ),
         ],
@@ -3746,28 +4204,25 @@ class _AddServerActions extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
+        _menuItem(
           value: _AddServerAction.manualEntry,
-          child: ListTile(
-            leading: const Icon(Icons.edit_note),
-            title: Text(strings.enterServerManually),
-            contentPadding: EdgeInsets.zero,
-          ),
+          icon: Icons.edit_note,
+          title: strings.enterServerManually,
         ),
         if (supportsQrImport)
-          PopupMenuItem(
+          const PopupMenuDivider(height: 1),
+        if (supportsQrImport)
+          _menuItem(
             value: _AddServerAction.scanQr,
-            child: ListTile(
-              leading: const Icon(Icons.qr_code_scanner),
-              title: Text(strings.scanServerQr),
-              contentPadding: EdgeInsets.zero,
-            ),
+            icon: Icons.qr_code_scanner,
+            title: strings.scanServerQr,
           ),
       ],
       child: IgnorePointer(
         child: FilledButton.icon(
+          style: _largePrimaryFilledButtonStyle(),
           onPressed: () {},
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.add, size: 20),
           label: Text(strings.addServer),
         ),
       ),
@@ -3792,8 +4247,9 @@ class _MobileAddServerButton extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!supportsQrImport) {
       return FilledButton.icon(
+        style: _largePrimaryFilledButtonStyle(),
         onPressed: onManualEntry,
-        icon: const Icon(Icons.add, size: 16),
+        icon: const Icon(Icons.add, size: 20),
         label: Text(strings.addServer),
       );
     }
@@ -3809,37 +4265,24 @@ class _MobileAddServerButton extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
+        _menuItem(
           value: _AddServerAction.manualEntry,
-          child: ListTile(
-            leading: const Icon(Icons.edit_note),
-            title: Text(strings.enterServerManually),
-            contentPadding: EdgeInsets.zero,
-          ),
+          icon: Icons.edit_note,
+          title: strings.enterServerManually,
         ),
-        PopupMenuItem(
+        const PopupMenuDivider(height: 1),
+        _menuItem(
           value: _AddServerAction.scanQr,
-          child: ListTile(
-            leading: const Icon(Icons.qr_code_scanner),
-            title: Text(strings.scanServerQr),
-            contentPadding: EdgeInsets.zero,
-          ),
+          icon: Icons.qr_code_scanner,
+          title: strings.scanServerQr,
         ),
       ],
       child: IgnorePointer(
         child: FilledButton.icon(
-          style: FilledButton.styleFrom(
-            backgroundColor: _mobilePrimary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            minimumSize: const Size(0, 38),
-          ),
+          style: _largePrimaryFilledButtonStyle(),
           onPressed: () {},
-          icon: const Icon(Icons.add, size: 16),
-          label: Text(
-            strings.addServer,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          ),
+          icon: const Icon(Icons.add, size: 20),
+          label: Text(strings.addServer),
         ),
       ),
     );
@@ -3872,6 +4315,7 @@ class ServerTile extends StatefulWidget {
 
 class _ServerTileState extends State<ServerTile> {
   bool _testing = false;
+  _ConnectionTestState _connectionState = _ConnectionTestState.unknown;
 
   @override
   Widget build(BuildContext context) {
@@ -3884,10 +4328,12 @@ class _ServerTileState extends State<ServerTile> {
         server: server,
         strings: strings,
         testing: _testing,
+        connectionState: _connectionState,
         onOpen: widget.onOpen,
         onTest: _testing ? null : _testServer,
         onEdit: widget.onEdit,
         onDelete: widget.onDelete,
+        onExportQr: widget.onExportQr,
       );
     }
 
@@ -3895,7 +4341,19 @@ class _ServerTileState extends State<ServerTile> {
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: const Icon(Icons.dns),
-        title: Text(server.name),
+        title: Row(
+          children: [
+            Expanded(child: Text(server.name)),
+            IconButton(
+              tooltip: strings.exportServerQr,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+              padding: EdgeInsets.zero,
+              onPressed: widget.onExportQr,
+              icon: const Icon(Icons.qr_code_2, size: 20),
+            ),
+          ],
+        ),
         subtitle: isCompactLayout ? null : Text(server.baseUrl),
         onTap: widget.onOpen,
         trailing: Wrap(
@@ -3924,29 +4382,23 @@ class _ServerTileState extends State<ServerTile> {
                 }
               },
               itemBuilder: (context) => [
-                PopupMenuItem(
+                _menuItem(
                   value: _ServerTileAction.exportQr,
-                  child: ListTile(
-                    leading: const Icon(Icons.qr_code_2),
-                    title: Text(strings.exportServerQr),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+                  icon: Icons.qr_code_2,
+                  title: strings.exportServerQr,
                 ),
-                PopupMenuItem(
+                const PopupMenuDivider(height: 1),
+                _menuItem(
                   value: _ServerTileAction.edit,
-                  child: ListTile(
-                    leading: const Icon(Icons.edit),
-                    title: Text(strings.editServer),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+                  icon: Icons.edit,
+                  title: strings.editServer,
                 ),
-                PopupMenuItem(
+                const PopupMenuDivider(height: 1),
+                _menuItem(
                   value: _ServerTileAction.delete,
-                  child: ListTile(
-                    leading: const Icon(Icons.delete_outline),
-                    title: Text(strings.deleteServer),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+                  icon: Icons.delete_outline,
+                  title: strings.deleteServer,
+                  destructive: true,
                 ),
               ],
             ),
@@ -3959,6 +4411,7 @@ class _ServerTileState extends State<ServerTile> {
   Future<void> _testServer() async {
     setState(() {
       _testing = true;
+      _connectionState = _ConnectionTestState.testing;
     });
 
     try {
@@ -3971,6 +4424,9 @@ class _ServerTileState extends State<ServerTile> {
       if (!mounted) {
         return;
       }
+      setState(() {
+        _connectionState = _ConnectionTestState.succeeded;
+      });
       _showSnackBar(context, widget.strings.connectionTestSucceeded);
     } on WebDavException catch (error) {
       AppLogger.error(
@@ -3978,7 +4434,20 @@ class _ServerTileState extends State<ServerTile> {
       if (!mounted) {
         return;
       }
+      setState(() {
+        _connectionState = _ConnectionTestState.failed;
+      });
       _showSnackBar(context, widget.strings.webDavError(error));
+    } catch (error) {
+      AppLogger.error(
+          'UI', 'test server failed alias=${widget.server.name}', error);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _connectionState = _ConnectionTestState.failed;
+      });
+      _showSnackBar(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -3994,27 +4463,37 @@ class _MobileServerCard extends StatelessWidget {
     required this.server,
     required this.strings,
     required this.testing,
+    required this.connectionState,
     required this.onOpen,
     required this.onTest,
     required this.onEdit,
     required this.onDelete,
+    required this.onExportQr,
   });
 
   final WebDavAccount server;
   final AppStrings strings;
   final bool testing;
+  final _ConnectionTestState connectionState;
   final VoidCallback onOpen;
   final VoidCallback? onTest;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onExportQr;
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = switch (connectionState) {
+      _ConnectionTestState.succeeded => _mobilePrimary,
+      _ConnectionTestState.failed => _mobileMuted,
+      _ConnectionTestState.testing => _mobileMuted,
+      _ConnectionTestState.unknown => _mobilePrimary,
+    };
     return Material(
       color: _mobileSurface,
       elevation: 5,
       shadowColor: Colors.black.withOpacity(0.16),
-      borderRadius: BorderRadius.circular(7),
+      borderRadius: BorderRadius.circular(3),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
@@ -4048,6 +4527,16 @@ class _MobileServerCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    IconButton(
+                      tooltip: strings.exportServerQr,
+                      visualDensity: VisualDensity.compact,
+                      constraints:
+                          const BoxConstraints.tightFor(width: 32, height: 32),
+                      padding: EdgeInsets.zero,
+                      color: Colors.white,
+                      onPressed: onExportQr,
+                      icon: const Icon(Icons.qr_code_2, size: 20),
+                    ),
                   ],
                 ),
               ),
@@ -4069,7 +4558,7 @@ class _MobileServerCard extends StatelessWidget {
                       Icon(
                         testing ? Icons.circle_outlined : Icons.circle,
                         size: 11,
-                        color: testing ? _mobileMuted : _mobilePrimary,
+                        color: statusColor,
                       ),
                       const SizedBox(width: 6),
                       if (testing)
@@ -4081,18 +4570,22 @@ class _MobileServerCard extends StatelessWidget {
                           ),
                         ),
                       const Spacer(),
-                      _MobileIconButton(
-                        tooltip: strings.testConnection,
-                        onPressed: onTest,
-                        icon: testing
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: _mobilePrimary,
-                                ),
-                              )
-                            : const Icon(Icons.wifi, size: 21),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {},
+                        child: _MobileIconButton(
+                          tooltip: strings.testConnection,
+                          onPressed: onTest,
+                          icon: testing
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _mobilePrimary,
+                                  ),
+                                )
+                              : const Icon(Icons.wifi, size: 21),
+                        ),
                       ),
                       _MobileIconButton(
                         tooltip: strings.editServer,
@@ -4220,21 +4713,28 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                     initialValue: _sortField,
                     onSelected: _changeSort,
                     itemBuilder: (context) => [
-                      PopupMenuItem(
+                      _menuItem(
                         value: FileSortField.name,
-                        child: Text(strings.sortByName),
+                        icon: Icons.sort_by_alpha,
+                        title: strings.sortByName,
                       ),
-                      PopupMenuItem(
+                      const PopupMenuDivider(height: 1),
+                      _menuItem(
                         value: FileSortField.type,
-                        child: Text(strings.sortByType),
+                        icon: Icons.category_outlined,
+                        title: strings.sortByType,
                       ),
-                      PopupMenuItem(
+                      const PopupMenuDivider(height: 1),
+                      _menuItem(
                         value: FileSortField.size,
-                        child: Text(strings.sortBySize),
+                        icon: Icons.straighten,
+                        title: strings.sortBySize,
                       ),
-                      PopupMenuItem(
+                      const PopupMenuDivider(height: 1),
+                      _menuItem(
                         value: FileSortField.modified,
-                        child: Text(strings.sortByModified),
+                        icon: Icons.schedule,
+                        title: strings.sortByModified,
                       ),
                     ],
                   ),
@@ -4363,7 +4863,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                 filled: true,
                 fillColor: const Color(0xFFEDEDEF),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(3),
                   borderSide: BorderSide.none,
                 ),
                 isDense: true,
@@ -4434,15 +4934,19 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(border: OutlineInputBorder()),
+            decoration: _primaryOutlinedInputDecoration(
+              widget.strings.currentPath,
+            ),
             onSubmitted: (value) => Navigator.of(context).pop(value),
           ),
           actions: [
             TextButton(
+              style: _primaryTextButtonStyle(),
               onPressed: () => Navigator.of(context).pop(),
               child: Text(widget.strings.cancel),
             ),
             FilledButton(
+              style: _primaryFilledButtonStyle(),
               onPressed: () => Navigator.of(context).pop(controller.text),
               child: Text(widget.strings.save),
             ),
@@ -4959,10 +5463,12 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
           content: Text(widget.strings.deleteResourceConfirm(resource.name)),
           actions: [
             TextButton(
+              style: _primaryTextButtonStyle(),
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(widget.strings.cancel),
             ),
             FilledButton(
+              style: _primaryFilledButtonStyle(),
               onPressed: () => Navigator.of(context).pop(true),
               child: Text(widget.strings.delete),
             ),
@@ -5137,6 +5643,25 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         _showSnackBar(context, error.message);
       }
       return null;
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'UI',
+        'download directory failed path=${resource.path}',
+        error,
+        stackTrace,
+      );
+      final message = error.toString();
+      await widget.onTransferChanged(
+        transfer.copyWith(
+          status: TransferStatus.failed,
+          finishedAt: DateTime.now(),
+          errorMessage: message,
+        ),
+      );
+      if (mounted) {
+        _showSnackBar(context, message);
+      }
+      return null;
     } finally {
       if (mounted) {
         setState(() {
@@ -5289,6 +5814,25 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         _showSnackBar(context, error.message);
       }
       return null;
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'UI',
+        'download failed path=${resource.path}',
+        error,
+        stackTrace,
+      );
+      final message = error.toString();
+      await widget.onTransferChanged(
+        transfer.copyWith(
+          status: TransferStatus.failed,
+          finishedAt: DateTime.now(),
+          errorMessage: message,
+        ),
+      );
+      if (mounted) {
+        _showSnackBar(context, message);
+      }
+      return null;
     } finally {
       if (mounted) {
         setState(() {
@@ -5381,6 +5925,24 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       }
       _showSnackBar(context, error.message);
       return _MutationResult.failure(error.message);
+    } catch (error, stackTrace) {
+      AppLogger.error(
+          'UI', 'file operation failed path=$_path', error, stackTrace);
+      final message = error.toString();
+      if (transfer != null) {
+        await widget.onTransferChanged(
+          transfer.copyWith(
+            status: TransferStatus.failed,
+            finishedAt: DateTime.now(),
+            errorMessage: message,
+          ),
+        );
+      }
+      if (!mounted) {
+        return _MutationResult.failure(message);
+      }
+      _showSnackBar(context, message);
+      return _MutationResult.failure(message);
     } finally {
       if (mounted) {
         setState(() {
@@ -5401,7 +5963,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         return AlertDialog(
           title: Text(title),
           content: TextField(
-            decoration: InputDecoration(labelText: label),
+            decoration: _primaryOutlinedInputDecoration(label),
             autofocus: true,
             onChanged: (value) {
               input = value;
@@ -5410,10 +5972,12 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
           ),
           actions: [
             TextButton(
+              style: _primaryTextButtonStyle(),
               onPressed: () => Navigator.of(context).pop(),
               child: Text(widget.strings.cancel),
             ),
             FilledButton(
+              style: _primaryFilledButtonStyle(),
               onPressed: () => Navigator.of(context).pop(input),
               child: Text(widget.strings.save),
             ),
@@ -5494,14 +6058,26 @@ class FileResourceLeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final preview = FileResourcePreview(
+      resource: resource,
+      imageSource: imageSource,
+      iconSize: 24,
+    );
     return SizedBox.square(
       dimension: 44,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: FileResourcePreview(
-          resource: resource,
-          imageSource: imageSource,
-          iconSize: 24,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _mobileSurface,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(imageSource == null ? 4 : 0),
+          child: imageSource == null
+              ? preview
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: preview,
+                ),
         ),
       ),
     );
@@ -5606,7 +6182,7 @@ class FileGridTile extends StatelessWidget {
     return Material(
       color: colorScheme.surfaceContainerHighest.withOpacity(0.35),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(3),
         side: BorderSide(color: colorScheme.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
@@ -5700,21 +6276,17 @@ class FileActionsMenu extends StatelessWidget {
       },
       itemBuilder: (context) => [
         if (onDownload != null)
-          PopupMenuItem(
+          _menuItem(
             value: _FileAction.download,
-            child: ListTile(
-              leading: const Icon(Icons.download),
-              title: Text(strings.download),
-              contentPadding: EdgeInsets.zero,
-            ),
+            icon: Icons.download,
+            title: strings.download,
           ),
-        PopupMenuItem(
+        if (onDownload != null) const PopupMenuDivider(height: 1),
+        _menuItem(
           value: _FileAction.delete,
-          child: ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: Text(strings.delete),
-            contentPadding: EdgeInsets.zero,
-          ),
+          icon: Icons.delete_outline,
+          title: strings.delete,
+          destructive: true,
         ),
       ],
     );
@@ -5887,7 +6459,7 @@ class ResourceIconPlaceholder extends StatelessWidget {
         border: resource.isDirectory
             ? null
             : Border.all(color: const Color(0xFF9EA1A3)),
-        borderRadius: BorderRadius.circular(resource.isDirectory ? 4 : 2),
+        borderRadius: BorderRadius.circular(resource.isDirectory ? 3 : 2),
       ),
       child: Center(
         child: loading
