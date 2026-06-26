@@ -177,7 +177,12 @@ class _HomePageState extends State<HomePage> {
 
         return Scaffold(
           backgroundColor: _mobileBackground,
-          body: _buildSection(),
+          body: Column(
+            children: [
+              const _MobileTopBar(),
+              Expanded(child: _buildSection()),
+            ],
+          ),
           bottomNavigationBar: _MobileNavigationBar(
             selectedIndex: _selectedIndex,
             onDestinationSelected: _selectDestination,
@@ -955,6 +960,74 @@ class _MobileNavigationItem extends StatelessWidget {
   }
 }
 
+class _MobileTopBar extends StatelessWidget {
+  const _MobileTopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: _mobileSurface,
+      child: SafeArea(
+        bottom: false,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: _mobileBorder)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset('assets/icon.png', width: 34, height: 34),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Xylos',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _mobileText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileTopBarIconButton extends StatelessWidget {
+  const _MobileTopBarIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: _mobilePrimary,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+      padding: EdgeInsets.zero,
+      icon: Icon(icon, size: 22),
+    );
+  }
+}
+
 class SettingsPage extends StatelessWidget {
   static final Uri _githubUri = Uri.parse(
     'https://github.com/maoyutofu/xylos-app',
@@ -1178,166 +1251,153 @@ class SettingsPage extends StatelessWidget {
   }
 
   Widget _buildMobile(BuildContext context) {
-    return SafeArea(
-      child: ColoredBox(
-        color: _mobileBackground,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 28, 16, 20),
-          children: [
-            Text(
-              strings.settingsTitle,
-              style: const TextStyle(
-                color: _mobileText,
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Georgia',
-              ),
-            ),
-            const SizedBox(height: 16),
-            _MobileSettingsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(strings.language, style: _mobileSettingsTitleStyle),
-                  const SizedBox(height: 10),
-                  SegmentedButton<AppLanguage>(
-                    segments: const [
-                      ButtonSegment(
-                        value: AppLanguage.zh,
-                        label: Text('中文'),
-                      ),
-                      ButtonSegment(
-                        value: AppLanguage.en,
-                        label: Text('English'),
-                      ),
-                    ],
-                    selected: {language},
-                    style: ButtonStyle(
-                      backgroundColor:
-                          WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.selected)) {
-                          return _mobilePrimarySoft;
-                        }
-                        return const Color(0xFFEDECEF);
-                      }),
-                      side: const WidgetStatePropertyAll(BorderSide.none),
-                      shape: WidgetStatePropertyAll(
-                        RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
+    return ColoredBox(
+      color: _mobileBackground,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        children: [
+          _MobileSettingsCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(strings.language, style: _mobileSettingsTitleStyle),
+                const SizedBox(height: 10),
+                SegmentedButton<AppLanguage>(
+                  segments: const [
+                    ButtonSegment(
+                      value: AppLanguage.zh,
+                      label: Text('中文'),
+                    ),
+                    ButtonSegment(
+                      value: AppLanguage.en,
+                      label: Text('English'),
+                    ),
+                  ],
+                  selected: {language},
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return _mobilePrimarySoft;
+                      }
+                      return const Color(0xFFEDECEF);
+                    }),
+                    side: const WidgetStatePropertyAll(BorderSide.none),
+                    shape: WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
                       ),
                     ),
-                    onSelectionChanged: (selection) {
-                      onLanguageChanged(selection.first);
-                    },
                   ),
-                ],
-              ),
+                  onSelectionChanged: (selection) {
+                    onLanguageChanged(selection.first);
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            _MobileSettingsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    strings.downloadDirectory,
-                    style: _mobileSettingsTitleStyle,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              strings.downloadDirectory,
-                              style: const TextStyle(
-                                color: _mobileText,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
+          ),
+          const SizedBox(height: 14),
+          _MobileSettingsCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  strings.downloadDirectory,
+                  style: _mobileSettingsTitleStyle,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.downloadDirectory,
+                            style: const TextStyle(
+                              color: _mobileText,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              downloadDirectory.isEmpty
-                                  ? strings.downloadDirectoryNotSet
-                                  : downloadDirectory,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _mobileText,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_supportsDirectoryPicker)
-                        TextButton(
-                          onPressed: () => _chooseDownloadDirectory(context),
-                          style: TextButton.styleFrom(
-                            backgroundColor: _mobilePrimarySoft,
-                            foregroundColor: _mobilePrimary,
                           ),
-                          child: Text(strings.chooseDirectory),
+                          const SizedBox(height: 2),
+                          Text(
+                            downloadDirectory.isEmpty
+                                ? strings.downloadDirectoryNotSet
+                                : downloadDirectory,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _mobileText,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_supportsDirectoryPicker)
+                      TextButton(
+                        onPressed: () => _chooseDownloadDirectory(context),
+                        style: TextButton.styleFrom(
+                          backgroundColor: _mobilePrimarySoft,
+                          foregroundColor: _mobilePrimary,
                         ),
-                    ],
-                  ),
-                ],
-              ),
+                        child: Text(strings.chooseDirectory),
+                      ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            _MobileSettingsCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _MobileSettingsTile(
-                    icon: Icons.logout,
-                    title: strings.exportServers,
-                    onTap: () => _runExport(context),
-                  ),
-                  const Divider(height: 1, indent: 48, color: _mobileBorder),
-                  _MobileSettingsTile(
-                    icon: Icons.login,
-                    title: strings.importServers,
-                    onTap: () => _runImport(context),
-                  ),
-                  const Divider(height: 1, indent: 48, color: _mobileBorder),
-                  _MobileSettingsTile(
-                    icon: Icons.lock_outline,
-                    title: strings.changeMasterPassphrase,
-                    onTap: () => _runChangeMasterPassphrase(context),
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(height: 14),
+          _MobileSettingsCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _MobileSettingsTile(
+                  icon: Icons.logout,
+                  title: strings.exportServers,
+                  onTap: () => _runExport(context),
+                ),
+                const Divider(height: 1, indent: 48, color: _mobileBorder),
+                _MobileSettingsTile(
+                  icon: Icons.login,
+                  title: strings.importServers,
+                  onTap: () => _runImport(context),
+                ),
+                const Divider(height: 1, indent: 48, color: _mobileBorder),
+                _MobileSettingsTile(
+                  icon: Icons.lock_outline,
+                  title: strings.changeMasterPassphrase,
+                  onTap: () => _runChangeMasterPassphrase(context),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            _MobileSettingsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(strings.version, style: _mobileSettingsTitleStyle),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${strings.version} $appVersion',
-                    style: const TextStyle(fontSize: 13, color: _mobileText),
-                  ),
-                  const SizedBox(height: 8),
-                  _MobileLinkText(
-                    label: strings.github,
-                    onTap: () => _openExternalLink(context, _githubUri),
-                  ),
-                  const SizedBox(height: 8),
-                  _MobileLinkText(
-                    label: strings.discussions,
-                    onTap: () => _openExternalLink(context, _discussionsUri),
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(height: 14),
+          _MobileSettingsCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(strings.version, style: _mobileSettingsTitleStyle),
+                const SizedBox(height: 8),
+                Text(
+                  '${strings.version} $appVersion',
+                  style: const TextStyle(fontSize: 13, color: _mobileText),
+                ),
+                const SizedBox(height: 8),
+                _MobileLinkText(
+                  label: strings.github,
+                  onTap: () => _openExternalLink(context, _githubUri),
+                ),
+                const SizedBox(height: 8),
+                _MobileLinkText(
+                  label: strings.discussions,
+                  onTap: () => _openExternalLink(context, _discussionsUri),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1779,14 +1839,14 @@ class TransfersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showPageTitle = MediaQuery.sizeOf(context).width >= 720;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    final isMobileLayout = MediaQuery.sizeOf(context).width < _mobileBreakpoint;
+    final showPageTitle = !isMobileLayout;
+    final content = Padding(
+      padding: EdgeInsets.all(isMobileLayout ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isMobileLayout) ...[
             SectionHeader(
               title: strings.transfersTitle,
               showTitle: showPageTitle,
@@ -1796,77 +1856,86 @@ class TransfersPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Expanded(
-              child: transfers.isEmpty
-                  ? EmptyState(
-                      icon: Icons.sync_alt,
-                      title: strings.transfersEmptyTitle,
-                      message: strings.transfersEmptyMessage,
-                    )
-                  : ListView.separated(
-                      itemCount: transfers.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final transfer = transfers[index];
-                        return Card(
-                          margin: EdgeInsets.zero,
-                          child: ListTile(
-                            leading: Icon(_transferIcon(transfer.direction)),
-                            title: Text(_lastPathSegment(transfer.remotePath)),
-                            subtitle: Text(
-                              '${transfer.serverName} · ${_transferDirectionLabel(strings, transfer.direction)} · ${_transferStatusLabel(strings, transfer.status)}',
-                            ),
-                            trailing: PopupMenuButton<_TransferEntryAction>(
-                              tooltip: strings.openFolder,
-                              onSelected: (action) {
-                                switch (action) {
-                                  case _TransferEntryAction.openFolder:
-                                    onOpenFolder(
-                                      _parentDirectoryPath(transfer.localPath),
-                                    );
-                                  case _TransferEntryAction.retry:
-                                    onRetry(transfer);
-                                  case _TransferEntryAction.clean:
-                                    onClean(transfer);
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                PopupMenuItem(
-                                  value: _TransferEntryAction.openFolder,
-                                  child: ListTile(
-                                    leading: const Icon(Icons.folder_open),
-                                    title: Text(strings.openFolder),
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                                if (transfer.status == TransferStatus.failed)
-                                  PopupMenuItem(
-                                    value: _TransferEntryAction.retry,
-                                    child: ListTile(
-                                      leading: const Icon(Icons.refresh),
-                                      title: Text(strings.retry),
-                                      contentPadding: EdgeInsets.zero,
-                                    ),
-                                  ),
-                                PopupMenuItem(
-                                  value: _TransferEntryAction.clean,
-                                  child: ListTile(
-                                    leading: const Icon(
-                                        Icons.cleaning_services_outlined),
-                                    title: Text(strings.clean),
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
           ],
-        ),
+          Expanded(
+            child: transfers.isEmpty
+                ? EmptyState(
+                    icon: Icons.sync_alt,
+                    title: strings.transfersEmptyTitle,
+                    message: strings.transfersEmptyMessage,
+                  )
+                : ListView.separated(
+                    itemCount: transfers.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final transfer = transfers[index];
+                      return Card(
+                        margin: EdgeInsets.zero,
+                        child: ListTile(
+                          leading: Icon(_transferIcon(transfer.direction)),
+                          title: Text(_lastPathSegment(transfer.remotePath)),
+                          subtitle: Text(
+                            '${transfer.serverName} · ${_transferDirectionLabel(strings, transfer.direction)} · ${_transferStatusLabel(strings, transfer.status)}',
+                          ),
+                          trailing: PopupMenuButton<_TransferEntryAction>(
+                            tooltip: strings.openFolder,
+                            onSelected: (action) {
+                              switch (action) {
+                                case _TransferEntryAction.openFolder:
+                                  onOpenFolder(
+                                    _parentDirectoryPath(transfer.localPath),
+                                  );
+                                case _TransferEntryAction.retry:
+                                  onRetry(transfer);
+                                case _TransferEntryAction.clean:
+                                  onClean(transfer);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: _TransferEntryAction.openFolder,
+                                child: ListTile(
+                                  leading: const Icon(Icons.folder_open),
+                                  title: Text(strings.openFolder),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                              if (transfer.status == TransferStatus.failed)
+                                PopupMenuItem(
+                                  value: _TransferEntryAction.retry,
+                                  child: ListTile(
+                                    leading: const Icon(Icons.refresh),
+                                    title: Text(strings.retry),
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              PopupMenuItem(
+                                value: _TransferEntryAction.clean,
+                                child: ListTile(
+                                  leading: const Icon(
+                                    Icons.cleaning_services_outlined,
+                                  ),
+                                  title: Text(strings.clean),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
+    );
+
+    if (isMobileLayout) {
+      return ColoredBox(color: _mobileBackground, child: content);
+    }
+
+    return SafeArea(
+      child: content,
     );
   }
 }
@@ -1919,58 +1988,64 @@ class _OfflinePageState extends State<OfflinePage> {
 
   @override
   Widget build(BuildContext context) {
-    final showPageTitle = MediaQuery.sizeOf(context).width >= 720;
+    final isMobileLayout = MediaQuery.sizeOf(context).width < _mobileBreakpoint;
+    final showPageTitle = !isMobileLayout;
     final title = _serverPath.isEmpty
         ? widget.strings.offlineTitle
         : '${_lastPathSegment(_serverPath)} · ${widget.strings.localFilesTitle}';
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    final content = Padding(
+      padding: EdgeInsets.all(isMobileLayout ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isMobileLayout) ...[
             SectionHeader(
               title: title,
               showTitle: _serverPath.isNotEmpty || showPageTitle,
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                IconButton.filledTonal(
-                  tooltip: widget.strings.parentDirectory,
-                  onPressed: _canNavigateBack ? _navigateBack : null,
-                  icon: const Icon(Icons.arrow_back),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: widget.strings.refresh,
-                  onPressed: _loading ? null : _loadRoot,
-                  icon: const Icon(Icons.refresh),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    key: ValueKey(_currentLocalPath),
-                    initialValue: _currentLocalPath,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                      isDense: true,
-                    ),
-                    onFieldSubmitted: _openPathFromInput,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(child: _buildContent()),
           ],
-        ),
+          Row(
+            children: [
+              IconButton.filledTonal(
+                tooltip: widget.strings.parentDirectory,
+                onPressed: _canNavigateBack ? _navigateBack : null,
+                icon: const Icon(Icons.arrow_back),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                tooltip: widget.strings.refresh,
+                onPressed: _loading ? null : _loadRoot,
+                icon: const Icon(Icons.refresh),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey(_currentLocalPath),
+                  initialValue: _currentLocalPath,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    isDense: true,
+                  ),
+                  onFieldSubmitted: _openPathFromInput,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(child: _buildContent()),
+        ],
       ),
     );
+
+    if (isMobileLayout) {
+      return ColoredBox(color: _mobileBackground, child: content);
+    }
+    return SafeArea(child: content);
   }
 
   Widget _buildContent() {
@@ -3469,69 +3544,55 @@ class ServersPage extends StatelessWidget {
     BuildContext context, {
     required bool supportsQrImport,
   }) {
-    return SafeArea(
-      child: ColoredBox(
-        color: _mobileSurface,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      strings.serversTitle,
-                      style: const TextStyle(
-                        color: _mobileText,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  _MobileAddServerButton(
-                    strings: strings,
-                    supportsQrImport: supportsQrImport,
-                    onManualEntry: () => _openEditor(context),
-                    onScanQr: () => _runImportServerQr(context),
-                  ),
-                ],
+    return ColoredBox(
+      color: _mobileSurface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: _MobileAddServerButton(
+                strings: strings,
+                supportsQrImport: supportsQrImport,
+                onManualEntry: () => _openEditor(context),
+                onScanQr: () => _runImportServerQr(context),
               ),
-              const SizedBox(height: 22),
-              Expanded(
-                child: servers.isEmpty
-                    ? EmptyState(
-                        icon: Icons.dns_outlined,
-                        title: strings.noServersTitle,
-                        message: strings.noServersMessage,
-                        action: _MobileAddServerButton(
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: servers.isEmpty
+                  ? EmptyState(
+                      icon: Icons.dns_outlined,
+                      title: strings.noServersTitle,
+                      message: strings.noServersMessage,
+                      action: _MobileAddServerButton(
+                        strings: strings,
+                        supportsQrImport: supportsQrImport,
+                        onManualEntry: () => _openEditor(context),
+                        onScanQr: () => _runImportServerQr(context),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      itemCount: servers.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 18),
+                      itemBuilder: (context, index) {
+                        final server = servers[index];
+                        return ServerTile(
+                          server: server,
                           strings: strings,
-                          supportsQrImport: supportsQrImport,
-                          onManualEntry: () => _openEditor(context),
-                          onScanQr: () => _runImportServerQr(context),
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        itemCount: servers.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 18),
-                        itemBuilder: (context, index) {
-                          final server = servers[index];
-                          return ServerTile(
-                            server: server,
-                            strings: strings,
-                            onOpen: () => onOpen(server),
-                            onEdit: () => _openEditor(context, server: server),
-                            onDelete: () => _deleteServer(context, server),
-                            onExportQr: () =>
-                                _runExportServerQr(context, server),
-                            onHydrateServer: onHydrateServer,
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
+                          onOpen: () => onOpen(server),
+                          onEdit: () => _openEditor(context, server: server),
+                          onDelete: () => _deleteServer(context, server),
+                          onExportQr: () => _runExportServerQr(context, server),
+                          onHydrateServer: onHydrateServer,
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -4245,108 +4306,73 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   }
 
   Widget _buildMobile(BuildContext context) {
-    final strings = widget.strings;
-    return SafeArea(
-      child: ColoredBox(
-        color: _mobileSurface,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _MobileIconButton(
-                    tooltip: _path == '/'
-                        ? strings.backToServers
-                        : strings.parentDirectory,
-                    onPressed: _navigateBack,
-                    icon: const Icon(Icons.arrow_back, size: 22),
-                  ),
-                  Text(
-                    strings.filesTitle,
-                    style: const TextStyle(
-                      color: _mobileText,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 5),
-                      child: Text(
-                        '${widget.server.name}  >  $_path',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _mobileMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  _MobileIconButton(
-                    tooltip: strings.sortBy,
-                    onPressed: () => _showMobileSortMenu(context),
-                    icon: const Icon(Icons.sort, size: 22),
-                  ),
-                  _MobileIconButton(
-                    tooltip: _viewMode == FileViewMode.list
-                        ? strings.gridView
-                        : strings.listView,
-                    onPressed: _toggleViewMode,
-                    icon: Icon(
-                      _viewMode == FileViewMode.list
-                          ? Icons.grid_view
-                          : Icons.view_list,
-                      size: 22,
-                    ),
-                  ),
-                  _MobileIconButton(
-                    tooltip: strings.refresh,
-                    onPressed: _loading ? null : _loadPath,
-                    icon: const Icon(Icons.refresh, size: 22),
-                  ),
-                  TextButton(
-                    onPressed:
-                        _mutating ? null : () => _showMobileAddMenu(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _mobileText,
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      minimumSize: const Size(0, 34),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(strings.uploadFile),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                onChanged: (value) {
-                  setState(() {
-                    _mobileSearchQuery = value.trim().toLowerCase();
-                  });
-                },
-                decoration: InputDecoration(
-                  hintText: 'Search',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  filled: true,
-                  fillColor: const Color(0xFFEDEDEF),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: BorderSide.none,
-                  ),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 9),
+    return ColoredBox(
+      color: _mobileSurface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _MobileTopBarIconButton(
+                  tooltip: _path == '/'
+                      ? widget.strings.backToServers
+                      : widget.strings.parentDirectory,
+                  icon: Icons.arrow_back,
+                  onPressed: _navigateBack,
                 ),
+                const Spacer(),
+                _MobileTopBarIconButton(
+                  tooltip: widget.strings.sortBy,
+                  icon: Icons.sort,
+                  onPressed: () => _showMobileSortMenu(context),
+                ),
+                _MobileTopBarIconButton(
+                  tooltip: _viewMode == FileViewMode.list
+                      ? widget.strings.gridView
+                      : widget.strings.listView,
+                  icon: _viewMode == FileViewMode.list
+                      ? Icons.grid_view
+                      : Icons.view_list,
+                  onPressed: _toggleViewMode,
+                ),
+                _MobileTopBarIconButton(
+                  tooltip: widget.strings.refresh,
+                  icon: Icons.refresh,
+                  onPressed: _loading ? null : _loadPath,
+                ),
+                _MobileTopBarIconButton(
+                  tooltip: widget.strings.uploadFile,
+                  icon: Icons.add,
+                  onPressed:
+                      _mutating ? null : () => _showMobileAddMenu(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              onChanged: (value) {
+                setState(() {
+                  _mobileSearchQuery = value.trim().toLowerCase();
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: const Color(0xFFEDEDEF),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide.none,
+                ),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 9),
               ),
-              const SizedBox(height: 14),
-              Expanded(child: _buildMobileFileList()),
-            ],
-          ),
+            ),
+            const SizedBox(height: 14),
+            Expanded(child: _buildMobileFileList()),
+          ],
         ),
       ),
     );
