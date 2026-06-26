@@ -76,21 +76,21 @@ android {
         versionName = flutterVersionName
     }
 
-    buildTypes {
-        release {
-            if (hasReleaseSigning) {
-                signingConfig = signingConfigs.release
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
             }
         }
     }
 
-    signingConfigs {
-        if (hasReleaseSigning) {
-            release {
-                storeFile file(releaseStoreFile)
-                storePassword releaseStorePassword
-                keyAlias releaseKeyAlias
-                keyPassword releaseKeyPassword
+    buildTypes {
+        release {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.release
             }
         }
     }
