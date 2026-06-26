@@ -187,6 +187,10 @@ Win32Window::MessageHandler(HWND hwnd,
       }
       return 0;
 
+    case WM_CLOSE:
+      ShowWindow(hwnd, SW_MINIMIZE);
+      return 0;
+
     case WM_DPICHANGED: {
       auto newRectSize = reinterpret_cast<RECT*>(lparam);
       LONG newWidth = newRectSize->right - newRectSize->left;

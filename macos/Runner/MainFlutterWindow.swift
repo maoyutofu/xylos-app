@@ -13,4 +13,8 @@ class MainFlutterWindow: NSWindow {
 
     super.awakeFromNib()
   }
+
+  override func close() {
+    miniaturize(nil)
+  }
 }

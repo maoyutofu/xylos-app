@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:open_filex/open_filex.dart';
@@ -22,6 +23,7 @@ import '../services/webdav_client.dart';
 import 'app_theme.dart';
 
 const _mobileBreakpoint = 720.0;
+const MethodChannel _systemChannel = MethodChannel('space.xylos.app/system');
 
 PopupMenuItem<T> _menuItem<T>({
   required T value,
@@ -264,97 +266,134 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useRail = constraints.maxWidth >= _mobileBreakpoint;
-        if (useRail) {
-          final theme = Theme.of(context);
-          return Scaffold(
-            backgroundColor: theme.xylos.background,
-            body: Row(
-              children: [
-                ColoredBox(
-                  color: theme.subtleSurfaceColor,
-                  child: NavigationRailTheme(
-                    data: NavigationRailThemeData(
-                      backgroundColor: theme.subtleSurfaceColor,
-                      indicatorColor: theme.xylos.primarySoft,
-                      selectedIconTheme: IconThemeData(
-                        color: theme.colorScheme.primary,
-                      ),
-                      unselectedIconTheme: IconThemeData(
-                        color: theme.xylos.muted,
-                      ),
-                      selectedLabelTextStyle: TextStyle(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      unselectedLabelTextStyle: TextStyle(
-                        color: theme.xylos.muted,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: NavigationRail(
-                      selectedIndex: _selectedIndex,
-                      onDestinationSelected: _selectDestination,
-                      labelType: NavigationRailLabelType.all,
-                      useIndicator: true,
-                      leading: Padding(
-                        padding: const EdgeInsets.only(top: 16, bottom: 20),
-                        child: Image.asset(
-                          'assets/icon.png',
-                          width: 32,
-                          height: 32,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) {
+          return;
+        }
+        _handleSystemBack(context);
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useRail = constraints.maxWidth >= _mobileBreakpoint;
+          if (useRail) {
+            final theme = Theme.of(context);
+            return Scaffold(
+              backgroundColor: theme.xylos.background,
+              body: Row(
+                children: [
+                  ColoredBox(
+                    color: theme.subtleSurfaceColor,
+                    child: NavigationRailTheme(
+                      data: NavigationRailThemeData(
+                        backgroundColor: theme.subtleSurfaceColor,
+                        indicatorColor: theme.xylos.primarySoft,
+                        selectedIconTheme: IconThemeData(
+                          color: theme.colorScheme.primary,
+                        ),
+                        unselectedIconTheme: IconThemeData(
+                          color: theme.xylos.muted,
+                        ),
+                        selectedLabelTextStyle: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        unselectedLabelTextStyle: TextStyle(
+                          color: theme.xylos.muted,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      destinations: [
-                        NavigationRailDestination(
-                          icon: const Icon(Icons.dns_outlined),
-                          selectedIcon: const Icon(Icons.dns),
-                          label: Text(strings.serversNav),
+                      child: NavigationRail(
+                        selectedIndex: _selectedIndex,
+                        onDestinationSelected: _selectDestination,
+                        labelType: NavigationRailLabelType.all,
+                        useIndicator: true,
+                        leading: Padding(
+                          padding: const EdgeInsets.only(top: 16, bottom: 20),
+                          child: Image.asset(
+                            'assets/icon.png',
+                            width: 32,
+                            height: 32,
+                          ),
                         ),
-                        NavigationRailDestination(
-                          icon: const Icon(Icons.sync_alt_outlined),
-                          selectedIcon: const Icon(Icons.sync_alt),
-                          label: Text(strings.transfersNav),
-                        ),
-                        NavigationRailDestination(
-                          icon: const Icon(Icons.download_done_outlined),
-                          selectedIcon: const Icon(Icons.download_done),
-                          label: Text(strings.offlineNav),
-                        ),
-                        NavigationRailDestination(
-                          icon: const Icon(Icons.tune_outlined),
-                          selectedIcon: const Icon(Icons.tune),
-                          label: Text(strings.settingsNav),
-                        ),
-                      ],
+                        destinations: [
+                          NavigationRailDestination(
+                            icon: const Icon(Icons.dns_outlined),
+                            selectedIcon: const Icon(Icons.dns),
+                            label: Text(strings.serversNav),
+                          ),
+                          NavigationRailDestination(
+                            icon: const Icon(Icons.sync_alt_outlined),
+                            selectedIcon: const Icon(Icons.sync_alt),
+                            label: Text(strings.transfersNav),
+                          ),
+                          NavigationRailDestination(
+                            icon: const Icon(Icons.download_done_outlined),
+                            selectedIcon: const Icon(Icons.download_done),
+                            label: Text(strings.offlineNav),
+                          ),
+                          NavigationRailDestination(
+                            icon: const Icon(Icons.tune_outlined),
+                            selectedIcon: const Icon(Icons.tune),
+                            label: Text(strings.settingsNav),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const VerticalDivider(width: 1),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _buildSection()),
+                ],
+              ),
+            );
+          }
+
+          return Scaffold(
+            backgroundColor: kAppBackgroundColor,
+            body: Column(
+              children: [
+                const _MobileTopBar(),
                 Expanded(child: _buildSection()),
               ],
             ),
+            bottomNavigationBar: _MobileNavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _selectDestination,
+              strings: strings,
+            ),
           );
-        }
-
-        return Scaffold(
-          backgroundColor: kAppBackgroundColor,
-          body: Column(
-            children: [
-              const _MobileTopBar(),
-              Expanded(child: _buildSection()),
-            ],
-          ),
-          bottomNavigationBar: _MobileNavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _selectDestination,
-            strings: strings,
-          ),
-        );
-      },
+        },
+      ),
     );
+  }
+
+  void _handleSystemBack(BuildContext context) {
+    final useRail = MediaQuery.sizeOf(context).width >= _mobileBreakpoint;
+    if (useRail) {
+      return;
+    }
+
+    if (_selectedIndex == 0 && _activeServer != null) {
+      setState(() {
+        _activeServer = null;
+      });
+      return;
+    }
+
+    if (_selectedIndex != 0) {
+      setState(() {
+        _selectedIndex = 0;
+      });
+      return;
+    }
+
+    if (Platform.isAndroid) {
+      _systemChannel.invokeMethod('moveToBackground');
+      return;
+    }
+
+    SystemNavigator.pop();
   }
 
   Widget _buildSection() {

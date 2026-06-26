@@ -4,6 +4,7 @@
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
+#include <gtk/gtk.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -49,6 +50,12 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
   gtk_widget_set_size_request(GTK_WIDGET(window), 900, 640);
+  g_signal_connect(window, "close-request",
+                   G_CALLBACK(+[](GtkWindow* window, gpointer) -> gboolean {
+                     gtk_window_iconify(window);
+                     return TRUE;
+                   }),
+                   nullptr);
   gtk_widget_show(GTK_WIDGET(window));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
