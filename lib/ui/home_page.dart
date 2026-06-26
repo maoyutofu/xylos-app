@@ -19,114 +19,146 @@ import '../services/app_logger.dart';
 import '../services/local_crypto.dart';
 import '../services/server_qr_payload.dart';
 import '../services/webdav_client.dart';
+import 'app_theme.dart';
 
 const _mobileBreakpoint = 720.0;
-const _mobileBackground = Color(0xFFFFFFFF);
-const _mobileSurface = Color(0xFFFFFFFF);
-const _mobilePrimary = Color(0xFF58C99F);
-const _mobilePrimarySoft = Color(0xFFC9F3E3);
-const _mobileText = Color(0xFF111111);
-const _mobileMuted = Color(0xFF6F716F);
-const _mobileBorder = Color(0xFFE9E7E0);
-const _settingsModuleBorder = Color(0xFFE4E6E8);
-
-ButtonStyle _primaryFilledButtonStyle() {
-  return FilledButton.styleFrom(
-    backgroundColor: _mobilePrimary,
-    foregroundColor: Colors.white,
-  );
-}
-
-ButtonStyle _largePrimaryFilledButtonStyle() {
-  return FilledButton.styleFrom(
-    backgroundColor: _mobilePrimary,
-    foregroundColor: Colors.white,
-    minimumSize: const Size(0, 46),
-    padding: const EdgeInsets.symmetric(horizontal: 22),
-    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-  );
-}
-
-ButtonStyle _largePrimaryOutlinedButtonStyle() {
-  return OutlinedButton.styleFrom(
-    foregroundColor: _mobilePrimary,
-    minimumSize: const Size(0, 46),
-    padding: const EdgeInsets.symmetric(horizontal: 22),
-    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-    side: const BorderSide(color: _mobilePrimary),
-  );
-}
-
-ButtonStyle _primaryTextButtonStyle() {
-  return TextButton.styleFrom(foregroundColor: _mobilePrimary);
-}
-
-InputDecoration _primaryOutlinedInputDecoration(String label) {
-  const border = OutlineInputBorder(
-    borderSide: BorderSide(color: _mobilePrimary),
-  );
-  return InputDecoration(
-    labelText: label,
-    enabledBorder: border,
-    focusedBorder: border,
-  );
-}
 
 PopupMenuItem<T> _menuItem<T>({
   required T value,
   required IconData icon,
   required String title,
+  required BuildContext context,
   bool destructive = false,
 }) {
-  final color = destructive ? const Color(0xFFC84B4B) : _mobileText;
+  final theme = Theme.of(context);
+  final color = destructive ? theme.xylos.destructive : theme.xylos.text;
   return PopupMenuItem<T>(
     value: value,
     height: 42,
     padding: const EdgeInsets.symmetric(horizontal: 6),
-    child: Builder(
-      builder: (context) {
-        final states = MaterialStatesController.maybeOf(context)?.value ?? {};
-        final activeBackground = destructive
-            ? const Color(0xFFFDECEC)
-            : const Color(0xFFEAF8F2);
-        final pressedBackground = destructive
-            ? const Color(0xFFF8DADA)
-            : const Color(0xFFD7F1E6);
-        final background = states.contains(WidgetState.pressed)
-            ? pressedBackground
-            : states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.focused)
-              ? activeBackground
-              : Colors.transparent;
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(3),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+    labelTextStyle: WidgetStateProperty.resolveWith((states) {
+      return TextStyle(
+        color: color,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+      );
+    }),
+    mouseCursor: SystemMouseCursors.click,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: Theme.of(context).smallRadius,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     ),
   );
+}
+
+Widget _mobileBottomSheet({
+  required BuildContext context,
+  required List<Widget> children,
+}) {
+  final theme = Theme.of(context);
+  return SafeArea(
+    top: false,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: theme.xylos.sheetHandle,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(height: 10),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.xylos.surface,
+              border: Border.all(color: theme.xylos.moduleBorder),
+              borderRadius: theme.smallRadius,
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: children),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _mobileSheetTile({
+  required BuildContext context,
+  required IconData icon,
+  required String title,
+  required VoidCallback onTap,
+  bool destructive = false,
+}) {
+  final theme = Theme.of(context);
+  final color = destructive ? theme.xylos.destructive : theme.xylos.text;
+  return ListTile(
+    dense: true,
+    visualDensity: VisualDensity.compact,
+    leading: Icon(icon, color: color, size: 20),
+    title: Text(
+      title,
+      style: TextStyle(
+        color: color,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+    onTap: onTap,
+  );
+}
+
+Widget _themedDivider(BuildContext context, {double indent = 0}) {
+  return Divider(
+    height: 1,
+    indent: indent,
+    color: Theme.of(context).xylos.border,
+  );
+}
+
+List<Widget> _dialogActions(
+  BuildContext context, {
+  required String cancelLabel,
+  required String confirmLabel,
+  required VoidCallback onConfirm,
+  VoidCallback? onCancel,
+}) {
+  return [
+    TextButton(
+      style: Theme.of(context).primaryTextButtonStyle,
+      onPressed: onCancel ?? () => Navigator.of(context).pop(),
+      child: Text(cancelLabel),
+    ),
+    FilledButton(
+      style: Theme.of(context).primaryFilledButtonStyle,
+      onPressed: onConfirm,
+      child: Text(confirmLabel),
+    ),
+  ];
 }
 
 class HomePage extends StatefulWidget {
@@ -236,43 +268,69 @@ class _HomePageState extends State<HomePage> {
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= _mobileBreakpoint;
         if (useRail) {
+          final theme = Theme.of(context);
           return Scaffold(
+            backgroundColor: theme.xylos.background,
             body: Row(
               children: [
-                NavigationRail(
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: _selectDestination,
-                  labelType: NavigationRailLabelType.all,
-                  leading: Padding(
-                    padding: const EdgeInsets.only(top: 16, bottom: 20),
-                    child: Image.asset(
-                      'assets/icon.png',
-                      width: 32,
-                      height: 32,
+                ColoredBox(
+                  color: theme.subtleSurfaceColor,
+                  child: NavigationRailTheme(
+                    data: NavigationRailThemeData(
+                      backgroundColor: theme.subtleSurfaceColor,
+                      indicatorColor: theme.xylos.primarySoft,
+                      selectedIconTheme: IconThemeData(
+                        color: theme.colorScheme.primary,
+                      ),
+                      unselectedIconTheme: IconThemeData(
+                        color: theme.xylos.muted,
+                      ),
+                      selectedLabelTextStyle: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      unselectedLabelTextStyle: TextStyle(
+                        color: theme.xylos.muted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    child: NavigationRail(
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: _selectDestination,
+                      labelType: NavigationRailLabelType.all,
+                      useIndicator: true,
+                      leading: Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 20),
+                        child: Image.asset(
+                          'assets/icon.png',
+                          width: 32,
+                          height: 32,
+                        ),
+                      ),
+                      destinations: [
+                        NavigationRailDestination(
+                          icon: const Icon(Icons.dns_outlined),
+                          selectedIcon: const Icon(Icons.dns),
+                          label: Text(strings.serversNav),
+                        ),
+                        NavigationRailDestination(
+                          icon: const Icon(Icons.sync_alt_outlined),
+                          selectedIcon: const Icon(Icons.sync_alt),
+                          label: Text(strings.transfersNav),
+                        ),
+                        NavigationRailDestination(
+                          icon: const Icon(Icons.download_done_outlined),
+                          selectedIcon: const Icon(Icons.download_done),
+                          label: Text(strings.offlineNav),
+                        ),
+                        NavigationRailDestination(
+                          icon: const Icon(Icons.tune_outlined),
+                          selectedIcon: const Icon(Icons.tune),
+                          label: Text(strings.settingsNav),
+                        ),
+                      ],
                     ),
                   ),
-                  destinations: [
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.dns_outlined),
-                      selectedIcon: const Icon(Icons.dns),
-                      label: Text(strings.serversNav),
-                    ),
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.sync_alt_outlined),
-                      selectedIcon: const Icon(Icons.sync_alt),
-                      label: Text(strings.transfersNav),
-                    ),
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.download_done_outlined),
-                      selectedIcon: const Icon(Icons.download_done),
-                      label: Text(strings.offlineNav),
-                    ),
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.tune_outlined),
-                      selectedIcon: const Icon(Icons.tune),
-                      label: Text(strings.settingsNav),
-                    ),
-                  ],
                 ),
                 const VerticalDivider(width: 1),
                 Expanded(child: _buildSection()),
@@ -282,7 +340,7 @@ class _HomePageState extends State<HomePage> {
         }
 
         return Scaffold(
-          backgroundColor: _mobileBackground,
+          backgroundColor: kAppBackgroundColor,
           body: Column(
             children: [
               const _MobileTopBar(),
@@ -468,17 +526,20 @@ class _HomePageState extends State<HomePage> {
                     TextField(
                       controller: passphraseController,
                       obscureText: obscure,
-                      decoration: InputDecoration(
-                        labelText: strings.configPassphrase,
-                        errorText: errorText.isEmpty ? null : errorText,
-                      ),
+                      decoration: Theme.of(context)
+                          .desktopFieldDecoration(
+                            labelText: strings.configPassphrase,
+                          )
+                          .copyWith(
+                            errorText: errorText.isEmpty ? null : errorText,
+                          ),
                     ),
                     if (!hasVault) ...[
                       const SizedBox(height: 12),
                       TextField(
                         controller: confirmController,
                         obscureText: obscure,
-                        decoration: InputDecoration(
+                        decoration: Theme.of(context).desktopFieldDecoration(
                           labelText: strings.confirmPassphrase,
                         ),
                       ),
@@ -487,6 +548,7 @@ class _HomePageState extends State<HomePage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
+                        style: Theme.of(context).primaryTextButtonStyle,
                         onPressed: () {
                           setState(() {
                             obscure = !obscure;
@@ -503,11 +565,12 @@ class _HomePageState extends State<HomePage> {
               ),
               actions: [
                 TextButton(
+                  style: Theme.of(context).primaryTextButtonStyle,
                   onPressed: () => Navigator.of(dialogContext).pop(),
                   child: Text(strings.cancel),
                 ),
                 FilledButton(
-                  style: _primaryFilledButtonStyle(),
+                  style: Theme.of(context).primaryFilledButtonStyle,
                   onPressed: () {
                     final passphrase = passphraseController.text;
                     if (passphrase.isEmpty) {
@@ -557,16 +620,19 @@ class _HomePageState extends State<HomePage> {
                     TextField(
                       controller: passphraseController,
                       obscureText: obscure,
-                      decoration: InputDecoration(
-                        labelText: strings.configPassphrase,
-                        errorText: errorText.isEmpty ? null : errorText,
-                      ),
+                      decoration: Theme.of(context)
+                          .desktopFieldDecoration(
+                            labelText: strings.configPassphrase,
+                          )
+                          .copyWith(
+                            errorText: errorText.isEmpty ? null : errorText,
+                          ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: confirmController,
                       obscureText: obscure,
-                      decoration: InputDecoration(
+                      decoration: Theme.of(context).desktopFieldDecoration(
                         labelText: strings.confirmPassphrase,
                       ),
                     ),
@@ -574,6 +640,7 @@ class _HomePageState extends State<HomePage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
+                        style: Theme.of(context).primaryTextButtonStyle,
                         onPressed: () {
                           setState(() {
                             obscure = !obscure;
@@ -590,6 +657,7 @@ class _HomePageState extends State<HomePage> {
               ),
               actions: [
                 TextButton(
+                  style: Theme.of(context).primaryTextButtonStyle,
                   onPressed: () => Navigator.of(dialogContext).pop(),
                   child: Text(strings.cancel),
                 ),
@@ -1018,9 +1086,9 @@ class _MobileNavigationBar extends StatelessWidget {
     ];
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: _mobileSurface,
-        border: Border(top: BorderSide(color: _mobileBorder)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).xylos.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).xylos.border)),
       ),
       child: SafeArea(
         top: false,
@@ -1063,13 +1131,14 @@ class _MobileNavigationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? _mobilePrimary : _mobileMuted;
+    final theme = Theme.of(context);
+    final color = selected ? theme.colorScheme.primary : theme.xylos.muted;
     return InkWell(
       onTap: onTap,
       child: Column(
         children: [
           ColoredBox(
-            color: selected ? _mobilePrimary : Colors.transparent,
+            color: selected ? theme.colorScheme.primary : Colors.transparent,
             child: const SizedBox(height: 2, width: double.infinity),
           ),
           Expanded(
@@ -1103,12 +1172,14 @@ class _MobileTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _mobileSurface,
+      color: Theme.of(context).xylos.surface,
       child: SafeArea(
         bottom: false,
         child: DecoratedBox(
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: _mobileBorder)),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Theme.of(context).xylos.border),
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -1120,7 +1191,7 @@ class _MobileTopBar extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius: Theme.of(context).smallRadius,
                       child: Image.asset(
                         'assets/icon.png',
                         width: 24,
@@ -1128,14 +1199,14 @@ class _MobileTopBar extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Center(
+                  Center(
                     child: Text(
                       'Xylos',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: _mobileText,
+                        color: Theme.of(context).xylos.text,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1167,10 +1238,7 @@ class _MobileTopBarIconButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      color: _mobilePrimary,
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-      padding: EdgeInsets.zero,
+      style: Theme.of(context).mobileToolButtonStyle,
       icon: Icon(icon, size: 22),
     );
   }
@@ -1223,25 +1291,17 @@ class SettingsPage extends StatelessWidget {
     }
 
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          SectionHeader(
-            title: strings.settingsTitle,
-            showTitle: showPageTitle,
-          ),
-          const SizedBox(height: 16),
-          Card(
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(3),
-              side: const BorderSide(color: _settingsModuleBorder),
+      child: ColoredBox(
+        color: Theme.of(context).xylos.background,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            SectionHeader(
+              title: strings.settingsTitle,
+              showTitle: showPageTitle,
             ),
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            const SizedBox(height: 16),
+            _SettingsSectionCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1269,19 +1329,8 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(3),
-              side: const BorderSide(color: _settingsModuleBorder),
-            ),
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            const SizedBox(height: 12),
+            _SettingsSectionCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1303,14 +1352,8 @@ class SettingsPage extends StatelessWidget {
                         child: SizedBox(
                           height: _downloadDirectoryControlHeight,
                           child: InputDecorator(
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
+                            decoration:
+                                Theme.of(context).desktopFieldDecoration(),
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: SelectableText(
@@ -1337,76 +1380,76 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(3),
-              side: const BorderSide(color: _settingsModuleBorder),
+            const SizedBox(height: 12),
+            _SettingsSectionCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.upload_file),
+                    title: Text(strings.exportServers),
+                    subtitle: Text(
+                      sessionUnlocked
+                          ? strings.masterPassphraseUnlocked
+                          : strings.masterPassphraseLocked,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _runExport(context),
+                  ),
+                  const Divider(height: 1, endIndent: 16),
+                  ListTile(
+                    leading: const Icon(Icons.download),
+                    title: Text(strings.importServers),
+                    subtitle: Text(
+                      sessionUnlocked
+                          ? strings.masterPassphraseUnlocked
+                          : strings.masterPassphraseLocked,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _runImport(context),
+                  ),
+                  const Divider(height: 1, endIndent: 16),
+                  ListTile(
+                    leading: const Icon(Icons.password),
+                    title: Text(strings.changeMasterPassphrase),
+                    subtitle: Text(
+                      sessionUnlocked
+                          ? strings.masterPassphraseUnlocked
+                          : strings.masterPassphraseLocked,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _runChangeMasterPassphrase(context),
+                  ),
+                  const Divider(height: 1, endIndent: 16),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _SettingsAboutSection(
+                      strings: strings,
+                      appVersion: appVersion,
+                      onOpenGithub: () =>
+                          _openExternalLink(context, _githubUri),
+                      onOpenDiscussions: () =>
+                          _openExternalLink(context, _discussionsUri),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            margin: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.upload_file),
-                  title: Text(strings.exportServers),
-                  subtitle: Text(
-                    sessionUnlocked
-                        ? strings.masterPassphraseUnlocked
-                        : strings.masterPassphraseLocked,
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _runExport(context),
-                ),
-                const Divider(height: 1, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.download),
-                  title: Text(strings.importServers),
-                  subtitle: Text(
-                    sessionUnlocked
-                        ? strings.masterPassphraseUnlocked
-                        : strings.masterPassphraseLocked,
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _runImport(context),
-                ),
-                const Divider(height: 1, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.password),
-                  title: Text(strings.changeMasterPassphrase),
-                  subtitle: Text(
-                    sessionUnlocked
-                        ? strings.masterPassphraseUnlocked
-                        : strings.masterPassphraseLocked,
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _runChangeMasterPassphrase(context),
-                ),
-                const Divider(height: 1, endIndent: 16),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: _SettingsAboutSection(
-                    strings: strings,
-                    appVersion: appVersion,
-                    onOpenGithub: () => _openExternalLink(context, _githubUri),
-                    onOpenDiscussions: () =>
-                        _openExternalLink(context, _discussionsUri),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildMobile(BuildContext context) {
+    final theme = Theme.of(context);
+    final mobileSettingsTitleStyle = TextStyle(
+      color: theme.xylos.text,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+    );
     return ColoredBox(
-      color: _mobileBackground,
+      color: theme.xylos.background,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
         children: [
@@ -1414,7 +1457,7 @@ class SettingsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(strings.language, style: _mobileSettingsTitleStyle),
+                Text(strings.language, style: mobileSettingsTitleStyle),
                 const SizedBox(height: 10),
                 SegmentedButton<AppLanguage>(
                   segments: const [
@@ -1429,17 +1472,17 @@ class SettingsPage extends StatelessWidget {
                   ],
                   selected: {language},
                   style: ButtonStyle(
-                    foregroundColor: const WidgetStatePropertyAll(_mobileText),
+                    foregroundColor: WidgetStatePropertyAll(theme.xylos.text),
                     backgroundColor: WidgetStateProperty.resolveWith((states) {
                       if (states.contains(WidgetState.selected)) {
-                        return _mobilePrimarySoft;
+                        return theme.xylos.primarySoft;
                       }
-                      return const Color(0xFFEDECEF);
+                      return theme.subduedSurfaceColor;
                     }),
                     side: const WidgetStatePropertyAll(BorderSide.none),
                     shape: WidgetStatePropertyAll(
                       RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(3),
+                        borderRadius: Theme.of(context).smallRadius,
                       ),
                     ),
                   ),
@@ -1457,7 +1500,7 @@ class SettingsPage extends StatelessWidget {
               children: [
                 Text(
                   strings.downloadDirectory,
-                  style: _mobileSettingsTitleStyle,
+                  style: mobileSettingsTitleStyle,
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -1469,18 +1512,15 @@ class SettingsPage extends StatelessWidget {
                             : downloadDirectory,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _mobileText,
+                        style: TextStyle(
+                          color: theme.xylos.text,
                           fontSize: 12,
                         ),
                       ),
                     ),
                     TextButton(
                       onPressed: () => _chooseDownloadDirectory(context),
-                      style: TextButton.styleFrom(
-                        backgroundColor: _mobilePrimarySoft,
-                        foregroundColor: _mobilePrimary,
-                      ),
+                      style: theme.subtleTextButtonStyle,
                       child: Text(strings.chooseDirectory),
                     ),
                   ],
@@ -1498,13 +1538,13 @@ class SettingsPage extends StatelessWidget {
                   title: strings.exportServers,
                   onTap: () => _runExport(context),
                 ),
-                const Divider(height: 1, indent: 48, color: _mobileBorder),
+                _themedDivider(context, indent: 48),
                 _MobileSettingsTile(
                   icon: Icons.login,
                   title: strings.importServers,
                   onTap: () => _runImport(context),
                 ),
-                const Divider(height: 1, indent: 48, color: _mobileBorder),
+                _themedDivider(context, indent: 48),
                 _MobileSettingsTile(
                   icon: Icons.lock_outline,
                   title: strings.changeMasterPassphrase,
@@ -1599,12 +1639,6 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-const _mobileSettingsTitleStyle = TextStyle(
-  color: _mobileText,
-  fontSize: 15,
-  fontWeight: FontWeight.w600,
-);
-
 class _MobileSettingsCard extends StatelessWidget {
   const _MobileSettingsCard({
     required this.child,
@@ -1616,13 +1650,34 @@ class _MobileSettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _mobileSurface,
-        border: Border.all(color: _settingsModuleBorder),
-        borderRadius: BorderRadius.circular(3),
+        color: theme.xylos.surface,
+        border: Border.all(color: theme.xylos.moduleBorder),
+        borderRadius: theme.smallRadius,
       ),
       child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
+class _SettingsSectionCard extends StatelessWidget {
+  const _SettingsSectionCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: padding,
+        child: child,
+      ),
     );
   }
 }
@@ -1644,11 +1699,16 @@ class _SettingsAboutSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final titleStyle = compact
-        ? _mobileSettingsTitleStyle
+        ? TextStyle(
+            color: theme.xylos.text,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          )
         : Theme.of(context).textTheme.titleMedium;
     final versionStyle = TextStyle(
-      color: _mobileText,
+      color: theme.xylos.text,
       fontSize: compact ? 20 : 24,
       fontWeight: FontWeight.w700,
       height: 1.1,
@@ -1657,25 +1717,28 @@ class _SettingsAboutSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(strings.version, style: titleStyle),
+        Text(strings.appInfo, style: titleStyle),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFF6F7F8),
-            borderRadius: BorderRadius.circular(3),
+            color: theme.subduedSurfaceColor,
+            borderRadius: theme.smallRadius,
           ),
           child: Row(
             children: [
-              const Icon(Icons.deployed_code_outlined, color: _mobileMuted),
+              Icon(
+                Icons.widgets_outlined,
+                color: theme.mutedIconColor,
+              ),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Xylos',
-                    style: const TextStyle(
-                      color: _mobileText,
+                    style: TextStyle(
+                      color: theme.xylos.text,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1721,18 +1784,21 @@ class _SettingsLinkRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return InkWell(
-      borderRadius: BorderRadius.circular(3),
+      borderRadius: theme.smallRadius,
       onTap: onTap,
+      hoverColor: theme.listItemHoverColor,
+      splashColor: theme.listItemSplashColor,
       child: Ink(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          border: Border.all(color: _settingsModuleBorder),
-          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: theme.xylos.moduleBorder),
+          borderRadius: theme.smallRadius,
         ),
         child: Row(
           children: [
-            Icon(icon, color: _mobileMuted, size: 18),
+            Icon(icon, color: theme.mutedIconColor, size: 18),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1740,8 +1806,8 @@ class _SettingsLinkRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: _mobileText,
+                    style: TextStyle(
+                      color: theme.xylos.text,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1751,8 +1817,8 @@ class _SettingsLinkRow extends StatelessWidget {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _mobileMuted,
+                    style: TextStyle(
+                      color: theme.mutedIconColor,
                       fontSize: 12,
                     ),
                   ),
@@ -1760,7 +1826,7 @@ class _SettingsLinkRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.open_in_new, color: _mobileMuted, size: 16),
+            Icon(Icons.open_in_new, color: theme.mutedIconColor, size: 16),
           ],
         ),
       ),
@@ -1781,19 +1847,24 @@ class _MobileSettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return ListTile(
       dense: true,
       visualDensity: VisualDensity.compact,
-      leading: Icon(icon, color: _mobilePrimary, size: 21),
+      leading: Icon(icon, color: theme.colorScheme.primary, size: 21),
       title: Text(
         title,
-        style: const TextStyle(
-          color: _mobileText,
+        style: TextStyle(
+          color: theme.xylos.text,
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right, color: _mobileMuted, size: 18),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: theme.mutedIconColor,
+        size: 18,
+      ),
       onTap: onTap,
     );
   }
@@ -1825,6 +1896,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
   DigestAlgorithm _digestAlgorithm = DigestAlgorithm.md5;
   bool _allowHttp = false;
   bool _trustSelfSignedCert = false;
+  bool _showSecret = false;
 
   AppStrings get strings => widget.strings;
 
@@ -1866,13 +1938,15 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
               children: [
                 TextFormField(
                   controller: _aliasController,
-                  decoration: InputDecoration(labelText: strings.serverAlias),
+                  decoration: Theme.of(context).desktopFieldDecoration(
+                    labelText: strings.serverAlias,
+                  ),
                   validator: _validateAlias,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _baseUrlController,
-                  decoration: InputDecoration(
+                  decoration: Theme.of(context).desktopFieldDecoration(
                     labelText: strings.serverUrl,
                     hintText: 'https://example.com/dav',
                   ),
@@ -1882,7 +1956,9 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<AuthType>(
                   value: _authType,
-                  decoration: InputDecoration(labelText: strings.authType),
+                  decoration: Theme.of(context).desktopFieldDecoration(
+                    labelText: strings.authType,
+                  ),
                   items: [
                     for (final type in AuthType.values)
                       DropdownMenuItem(value: type, child: Text(type.label)),
@@ -1901,7 +1977,9 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _usernameController,
-                    decoration: InputDecoration(labelText: strings.username),
+                    decoration: Theme.of(context).desktopFieldDecoration(
+                      labelText: strings.username,
+                    ),
                     validator: _required,
                   ),
                 ],
@@ -1909,7 +1987,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<DigestAlgorithm>(
                     value: _digestAlgorithm,
-                    decoration: InputDecoration(
+                    decoration: Theme.of(context).desktopFieldDecoration(
                       labelText: strings.digestAlgorithm,
                     ),
                     items: [
@@ -1932,14 +2010,26 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _secretController,
-                  decoration: InputDecoration(
+                  decoration: Theme.of(context).desktopFieldDecoration(
                     labelText: _authType == AuthType.bearer
                         ? 'Token'
-                        : _authType == AuthType.basic
-                            ? strings.password
-                            : strings.password,
+                        : strings.password,
+                  ).copyWith(
+                    suffixIcon: IconButton(
+                      tooltip: strings.togglePassphraseVisibility,
+                      onPressed: () {
+                        setState(() {
+                          _showSecret = !_showSecret;
+                        });
+                      },
+                      icon: Icon(
+                        _showSecret
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: !_showSecret,
                   validator: _required,
                 ),
                 const SizedBox(height: 8),
@@ -1948,7 +2038,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                   title: Text(strings.allowHttp),
                   subtitle: Text(strings.allowHttpDescription),
                   value: _allowHttp,
-                  activeColor: _mobilePrimary,
+                  activeColor: kAppPrimaryColor,
                   onChanged: (value) {
                     setState(() {
                       _allowHttp = value;
@@ -1960,7 +2050,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                   title: Text(strings.trustSelfSignedCert),
                   subtitle: Text(strings.trustSelfSignedCertDescription),
                   value: _trustSelfSignedCert,
-                  activeColor: _mobilePrimary,
+                  activeColor: kAppPrimaryColor,
                   onChanged: (value) {
                     setState(() {
                       _trustSelfSignedCert = value;
@@ -1978,7 +2068,7 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
           child: Text(strings.cancel),
         ),
         FilledButton(
-          style: _primaryFilledButtonStyle(),
+          style: Theme.of(context).primaryFilledButtonStyle,
           onPressed: _submit,
           child: Text(strings.save),
         ),
@@ -2087,16 +2177,18 @@ class TransfersPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isMobileLayout) ...[
-            SectionHeader(
-              title: strings.transfersTitle,
-              showTitle: showPageTitle,
-              action: TextButton(
-                onPressed: transfers.isEmpty ? null : onClearCompleted,
-                child: Text(strings.clearCompleted),
-              ),
+          SectionHeader(
+            title: strings.transfersTitle,
+            showTitle: showPageTitle,
+            action: TextButton(
+              onPressed: transfers.isEmpty ? null : () => onClearCompleted(),
+              child: Text(strings.clearCompleted),
             ),
+          ),
+          if (!isMobileLayout) ...[
             const SizedBox(height: 16),
+          ] else ...[
+            const SizedBox(height: 12),
           ],
           Expanded(
             child: transfers.isEmpty
@@ -2112,12 +2204,21 @@ class TransfersPage extends StatelessWidget {
                     itemCount: transfers.length,
                     separatorBuilder: (_, __) => Divider(
                       height: 1,
-                      color: isMobileLayout ? _mobileBorder : null,
+                      color: isMobileLayout
+                          ? Theme.of(context).xylos.border
+                          : null,
                       indent: isMobileLayout ? 36 : 44,
                     ),
                     itemBuilder: (context, index) {
                       final transfer = transfers[index];
                       return ListTile(
+                        shape: Theme.of(context).tileShape(),
+                        tileColor: Colors.transparent,
+                        hoverColor: Theme.of(context).listItemHoverColor,
+                        splashColor: Theme.of(context).listItemSplashColor,
+                        selectedColor: Theme.of(context).xylos.text,
+                        iconColor: Theme.of(context).mutedIconColor,
+                        textColor: Theme.of(context).xylos.text,
                         dense: true,
                         visualDensity: VisualDensity.compact,
                         contentPadding: EdgeInsets.symmetric(
@@ -2131,6 +2232,7 @@ class TransfersPage extends StatelessWidget {
                         ),
                         trailing: PopupMenuButton<_TransferEntryAction>(
                           tooltip: strings.openFolder,
+                          style: Theme.of(context).menuTriggerButtonStyle,
                           onSelected: (action) {
                             switch (action) {
                               case _TransferEntryAction.openFolder:
@@ -2145,6 +2247,7 @@ class TransfersPage extends StatelessWidget {
                           },
                           itemBuilder: (context) => [
                             _menuItem(
+                              context: context,
                               value: _TransferEntryAction.openFolder,
                               icon: Icons.folder_open,
                               title: strings.openFolder,
@@ -2152,6 +2255,7 @@ class TransfersPage extends StatelessWidget {
                             const PopupMenuDivider(height: 1),
                             if (transfer.status == TransferStatus.failed)
                               _menuItem(
+                                context: context,
                                 value: _TransferEntryAction.retry,
                                 icon: Icons.refresh,
                                 title: strings.retry,
@@ -2159,6 +2263,7 @@ class TransfersPage extends StatelessWidget {
                             if (transfer.status == TransferStatus.failed)
                               const PopupMenuDivider(height: 1),
                             _menuItem(
+                              context: context,
                               value: _TransferEntryAction.clean,
                               icon: Icons.cleaning_services_outlined,
                               title: strings.clean,
@@ -2174,11 +2279,14 @@ class TransfersPage extends StatelessWidget {
     );
 
     if (isMobileLayout) {
-      return ColoredBox(color: _mobileBackground, child: content);
+      return ColoredBox(color: kAppBackgroundColor, child: content);
     }
 
-    return SafeArea(
-      child: content,
+    return ColoredBox(
+      color: Theme.of(context).xylos.background,
+      child: SafeArea(
+        child: content,
+      ),
     );
   }
 }
@@ -2255,14 +2363,16 @@ class _OfflinePageState extends State<OfflinePage> {
           const SizedBox(height: 12),
           Row(
             children: [
-              IconButton.filledTonal(
+              IconButton(
                 tooltip: widget.strings.parentDirectory,
+                style: Theme.of(context).desktopToolButtonStyle,
                 onPressed: _canNavigateBack ? _navigateBack : null,
                 icon: const Icon(Icons.arrow_back),
               ),
               const SizedBox(width: 8),
-              IconButton.filledTonal(
+              IconButton(
                 tooltip: widget.strings.refresh,
+                style: Theme.of(context).desktopToolButtonStyle,
                 onPressed: _loading ? null : _loadRoot,
                 icon: const Icon(Icons.refresh),
               ),
@@ -2271,14 +2381,7 @@ class _OfflinePageState extends State<OfflinePage> {
                 child: TextFormField(
                   key: ValueKey(_currentLocalPath),
                   initialValue: _currentLocalPath,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    isDense: true,
-                  ),
+                  decoration: Theme.of(context).desktopFieldDecoration(),
                   onFieldSubmitted: _openPathFromInput,
                 ),
               ),
@@ -2295,7 +2398,7 @@ class _OfflinePageState extends State<OfflinePage> {
 
   Widget _buildMobile(BuildContext context) {
     return ColoredBox(
-      color: _mobileSurface,
+      color: Theme.of(context).xylos.surface,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
         child: Column(
@@ -2323,18 +2426,7 @@ class _OfflinePageState extends State<OfflinePage> {
                   _mobileSearchQuery = value.trim().toLowerCase();
                 });
               },
-              decoration: InputDecoration(
-                hintText: 'Search',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                filled: true,
-                fillColor: const Color(0xFFEDEDEF),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(3),
-                  borderSide: BorderSide.none,
-                ),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 9),
-              ),
+              decoration: Theme.of(context).mobileSearchDecoration,
             ),
             const SizedBox(height: 14),
             Expanded(child: _buildContent(isMobileLayout: true)),
@@ -2385,7 +2477,11 @@ class _OfflinePageState extends State<OfflinePage> {
       padding: isMobileLayout ? const EdgeInsets.only(bottom: 20) : null,
       itemCount: visibleEntries.length,
       separatorBuilder: (_, __) => isMobileLayout
-          ? const Divider(height: 1, color: _mobileBorder, indent: 56)
+          ? Divider(
+              height: 1,
+              color: Theme.of(context).xylos.border,
+              indent: 56,
+            )
           : const Divider(height: 1),
       itemBuilder: (context, index) {
         final entry = visibleEntries[index];
@@ -2410,7 +2506,17 @@ class _OfflinePageState extends State<OfflinePage> {
           );
         }
         return ListTile(
-          leading: _OfflineEntryPreview(entry: entry),
+          shape: Theme.of(context).tileShape(),
+          tileColor: Colors.transparent,
+          hoverColor: Theme.of(context).listItemHoverColor,
+          splashColor: Theme.of(context).listItemSplashColor,
+          selectedColor: Theme.of(context).xylos.text,
+          iconColor: Theme.of(context).mutedIconColor,
+          textColor: Theme.of(context).xylos.text,
+          leading: _OfflineEntryPreview(
+            entry: entry,
+            showBackground: false,
+          ),
           title: Text(_lastPathSegment(entry.path)),
           subtitle: Text(
             isDirectory
@@ -2419,6 +2525,7 @@ class _OfflinePageState extends State<OfflinePage> {
           ),
           trailing: PopupMenuButton<_OfflineEntryAction>(
             tooltip: widget.strings.openFolder,
+            style: Theme.of(context).menuTriggerButtonStyle,
             onSelected: (action) {
               switch (action) {
                 case _OfflineEntryAction.openFolder:
@@ -2432,12 +2539,14 @@ class _OfflinePageState extends State<OfflinePage> {
             },
             itemBuilder: (context) => [
               _menuItem(
+                context: context,
                 value: _OfflineEntryAction.openFolder,
                 icon: Icons.folder_open,
                 title: widget.strings.openFolder,
               ),
               const PopupMenuDivider(height: 1),
               _menuItem(
+                context: context,
                 value: _OfflineEntryAction.delete,
                 icon: Icons.delete_outline,
                 title: widget.strings.delete,
@@ -2543,12 +2652,12 @@ class _OfflinePageState extends State<OfflinePage> {
           ),
           actions: [
             TextButton(
-              style: _primaryTextButtonStyle(),
+              style: Theme.of(context).primaryTextButtonStyle,
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(widget.strings.cancel),
             ),
             FilledButton(
-              style: _primaryFilledButtonStyle(),
+              style: Theme.of(context).primaryFilledButtonStyle,
               onPressed: () => Navigator.of(context).pop(true),
               child: Text(widget.strings.delete),
             ),
@@ -2629,18 +2738,23 @@ enum _ConnectionTestState {
 }
 
 class _OfflineEntryPreview extends StatelessWidget {
-  const _OfflineEntryPreview({required this.entry});
+  const _OfflineEntryPreview({
+    required this.entry,
+    this.showBackground = true,
+  });
 
   final FileSystemEntity entry;
+  final bool showBackground;
 
   @override
   Widget build(BuildContext context) {
     final isDirectory = entry is Directory;
     final path = entry.path;
     if (isDirectory) {
-      return const _OfflinePreviewFrame(
+      return _OfflinePreviewFrame(
+        showBackground: showBackground,
         padded: true,
-        child: _LocalResourceIconPlaceholder(
+        child: const _LocalResourceIconPlaceholder(
           icon: Icons.folder,
           isDirectory: true,
           iconSize: 24,
@@ -2649,8 +2763,10 @@ class _OfflineEntryPreview extends StatelessWidget {
     }
     if (_isLocalImagePath(path)) {
       return _OfflinePreviewFrame(
+        showBackground: false,
+        padded: true,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: Theme.of(context).smallRadius,
           child: Image.file(
             File(path),
             fit: BoxFit.cover,
@@ -2664,18 +2780,20 @@ class _OfflineEntryPreview extends StatelessWidget {
       );
     }
     if (_isLocalVideoPath(path)) {
-      return const _OfflinePreviewFrame(
+      return _OfflinePreviewFrame(
+        showBackground: showBackground,
         padded: true,
-        child: _LocalResourceIconPlaceholder(
+        child: const _LocalResourceIconPlaceholder(
           icon: Icons.videocam_outlined,
           isDirectory: false,
           iconSize: 24,
         ),
       );
     }
-    return const _OfflinePreviewFrame(
+    return _OfflinePreviewFrame(
+      showBackground: showBackground,
       padded: true,
-      child: _LocalResourceIconPlaceholder(
+      child: const _LocalResourceIconPlaceholder(
         icon: Icons.insert_drive_file_outlined,
         isDirectory: false,
         iconSize: 24,
@@ -2688,10 +2806,12 @@ class _OfflinePreviewFrame extends StatelessWidget {
   const _OfflinePreviewFrame({
     required this.child,
     this.padded = false,
+    this.showBackground = true,
   });
 
   final Widget child;
   final bool padded;
+  final bool showBackground;
 
   @override
   Widget build(BuildContext context) {
@@ -2699,8 +2819,8 @@ class _OfflinePreviewFrame extends StatelessWidget {
       dimension: 44,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _mobileSurface,
-          borderRadius: BorderRadius.circular(3),
+          color: showBackground ? Theme.of(context).xylos.surface : null,
+          borderRadius: Theme.of(context).smallRadius,
         ),
         child: Padding(
           padding: EdgeInsets.all(padded ? 4 : 0),
@@ -2730,8 +2850,11 @@ class _MobileOfflineFileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onOpen,
+      hoverColor: theme.listItemHoverColor,
+      splashColor: theme.listItemSplashColor,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
@@ -2746,8 +2869,8 @@ class _MobileOfflineFileRow extends StatelessWidget {
                     _lastPathSegment(entry.path),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _mobileText,
+                    style: TextStyle(
+                      color: theme.xylos.text,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -2757,8 +2880,8 @@ class _MobileOfflineFileRow extends StatelessWidget {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _mobileMuted,
+                    style: TextStyle(
+                      color: theme.xylos.muted,
                       fontSize: 11,
                     ),
                   ),
@@ -2767,6 +2890,7 @@ class _MobileOfflineFileRow extends StatelessWidget {
             ),
             PopupMenuButton<_OfflineEntryAction>(
               tooltip: strings.openFolder,
+              style: Theme.of(context).menuTriggerButtonStyle,
               onSelected: (action) {
                 switch (action) {
                   case _OfflineEntryAction.openFolder:
@@ -2777,12 +2901,14 @@ class _MobileOfflineFileRow extends StatelessWidget {
               },
               itemBuilder: (context) => [
                 _menuItem(
+                  context: context,
                   value: _OfflineEntryAction.openFolder,
                   icon: Icons.folder_open,
                   title: strings.openFolder,
                 ),
                 const PopupMenuDivider(height: 1),
                 _menuItem(
+                  context: context,
                   value: _OfflineEntryAction.delete,
                   icon: Icons.delete_outline,
                   title: strings.delete,
@@ -2818,8 +2944,11 @@ class _LocalResourceIconPlaceholder extends StatelessWidget {
         ? colorScheme.onPrimaryContainer
         : colorScheme.onSurfaceVariant;
 
-    return ColoredBox(
-      color: backgroundColor,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(isDirectory ? 3 : 2),
+      ),
       child: Center(
         child: Icon(icon, size: iconSize, color: foregroundColor),
       ),
@@ -2851,7 +2980,7 @@ class EmptyState extends StatelessWidget {
       decoration: showBorder
           ? BoxDecoration(
               border: Border.all(color: colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: Theme.of(context).smallRadius,
             )
           : const BoxDecoration(),
       child: Center(
@@ -2994,7 +3123,7 @@ class _QrScannerDialogState extends State<QrScannerDialog> {
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: Theme.of(context).smallRadius,
                 child: MobileScanner(
                   onDetect: (capture) {
                     if (_handled) {
@@ -3077,6 +3206,7 @@ class AppStrings {
     required this.noServersMessage,
     required this.backToServers,
     required this.testConnection,
+    required this.testingConnection,
     required this.connectionTestSucceeded,
     required this.refresh,
     required this.sortBy,
@@ -3159,7 +3289,7 @@ class AppStrings {
     required this.masterPassphraseChanged,
     required this.masterPassphraseUnlocked,
     required this.masterPassphraseLocked,
-    required this.version,
+    required this.appInfo,
     required this.github,
     required this.discussions,
     required this.serverUrl,
@@ -3218,6 +3348,7 @@ class AppStrings {
   final String noServersMessage;
   final String backToServers;
   final String testConnection;
+  final String testingConnection;
   final String connectionTestSucceeded;
   final String refresh;
   final String sortBy;
@@ -3300,7 +3431,7 @@ class AppStrings {
   final String masterPassphraseChanged;
   final String masterPassphraseUnlocked;
   final String masterPassphraseLocked;
-  final String version;
+  final String appInfo;
   final String github;
   final String discussions;
   final String serverUrl;
@@ -3484,6 +3615,7 @@ class AppStrings {
     noServersMessage: '添加一个 WebDAV 服务器后，点击服务器即可进入文件列表。',
     backToServers: '返回服务器',
     testConnection: '测试连接',
+    testingConnection: '连接测试中',
     connectionTestSucceeded: '连接测试成功',
     refresh: '刷新',
     sortBy: '排序',
@@ -3567,7 +3699,7 @@ class AppStrings {
     masterPassphraseChanged: '主口令已更新',
     masterPassphraseUnlocked: '当前会话已解锁',
     masterPassphraseLocked: '当前会话未解锁',
-    version: '版本号',
+    appInfo: '应用信息',
     github: 'GitHub',
     discussions: '讨论',
     serverUrl: '服务地址',
@@ -3630,6 +3762,7 @@ class AppStrings {
         'Add a WebDAV server, then click a server to browse its files.',
     backToServers: 'Back to Servers',
     testConnection: 'Test Connection',
+    testingConnection: 'Testing Connection',
     connectionTestSucceeded: 'Connection test succeeded',
     refresh: 'Refresh',
     sortBy: 'Sort',
@@ -3721,7 +3854,7 @@ class AppStrings {
     masterPassphraseChanged: 'Master passphrase updated',
     masterPassphraseUnlocked: 'Current session is unlocked',
     masterPassphraseLocked: 'Current session is locked',
-    version: 'Version',
+    appInfo: 'App Info',
     github: 'GitHub',
     discussions: 'Discussions',
     serverUrl: 'Server URL',
@@ -3902,7 +4035,18 @@ String _localPathForRemoteResource(
 }
 
 void _showSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  final theme = Theme.of(context);
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      backgroundColor: theme.xylos.surface,
+      content: Text(
+        message,
+        style: TextStyle(color: theme.xylos.text),
+      ),
+      shape: theme.cardShape(),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
 }
 
 class ServersPage extends StatelessWidget {
@@ -3935,61 +4079,65 @@ class ServersPage extends StatelessWidget {
       return _buildMobile(context, supportsQrImport: supportsQrImport);
     }
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              title: strings.serversTitle,
-              showTitle: showPageTitle,
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: servers.isEmpty
-                  ? EmptyState(
-                      icon: Icons.dns_outlined,
-                      title: strings.noServersTitle,
-                      message: strings.noServersMessage,
-                      action: _AddServerActions(
-                        strings: strings,
-                        supportsQrImport: supportsQrImport,
-                        useMenu: !showPageTitle,
-                        onManualEntry: () => _openEditor(context),
-                        onScanQr: () => _runImportServerQr(context),
-                      ),
-                    )
-                  : ListView.separated(
-                      itemCount: servers.length + 1,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        if (index == servers.length) {
-                          return Align(
-                            alignment: Alignment.center,
-                            child: _AddServerActions(
-                              strings: strings,
-                              supportsQrImport: supportsQrImport,
-                              useMenu: !showPageTitle,
-                              onManualEntry: () => _openEditor(context),
-                              onScanQr: () => _runImportServerQr(context),
-                            ),
-                          );
-                        }
-                        final server = servers[index];
-                        return ServerTile(
-                          server: server,
+    return ColoredBox(
+      color: Theme.of(context).xylos.background,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(
+                title: strings.serversTitle,
+                showTitle: showPageTitle,
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: servers.isEmpty
+                    ? EmptyState(
+                        icon: Icons.dns_outlined,
+                        title: strings.noServersTitle,
+                        message: strings.noServersMessage,
+                        action: _AddServerActions(
                           strings: strings,
-                          onOpen: () => onOpen(server),
-                          onEdit: () => _openEditor(context, server: server),
-                          onDelete: () => _deleteServer(context, server),
-                          onExportQr: () => _runExportServerQr(context, server),
-                          onHydrateServer: onHydrateServer,
-                        );
-                      },
-                    ),
-            ),
-          ],
+                          supportsQrImport: supportsQrImport,
+                          useMenu: !showPageTitle,
+                          onManualEntry: () => _openEditor(context),
+                          onScanQr: () => _runImportServerQr(context),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: servers.length + 1,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          if (index == servers.length) {
+                            return Align(
+                              alignment: Alignment.center,
+                              child: _AddServerActions(
+                                strings: strings,
+                                supportsQrImport: supportsQrImport,
+                                useMenu: !showPageTitle,
+                                onManualEntry: () => _openEditor(context),
+                                onScanQr: () => _runImportServerQr(context),
+                              ),
+                            );
+                          }
+                          final server = servers[index];
+                          return ServerTile(
+                            server: server,
+                            strings: strings,
+                            onOpen: () => onOpen(server),
+                            onEdit: () => _openEditor(context, server: server),
+                            onDelete: () => _deleteServer(context, server),
+                            onExportQr: () =>
+                                _runExportServerQr(context, server),
+                            onHydrateServer: onHydrateServer,
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -4000,7 +4148,7 @@ class ServersPage extends StatelessWidget {
     required bool supportsQrImport,
   }) {
     return ColoredBox(
-      color: _mobileBackground,
+      color: kAppBackgroundColor,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -4178,13 +4326,13 @@ class _AddServerActions extends StatelessWidget {
         children: [
           if (supportsQrImport)
             OutlinedButton.icon(
-              style: _largePrimaryOutlinedButtonStyle(),
+              style: Theme.of(context).largePrimaryOutlinedButtonStyle,
               onPressed: onScanQr,
               icon: const Icon(Icons.qr_code_scanner, size: 20),
               label: Text(strings.scanServerQr),
             ),
           FilledButton.icon(
-            style: _largePrimaryFilledButtonStyle(),
+            style: Theme.of(context).largePrimaryFilledButtonStyle,
             onPressed: onManualEntry,
             icon: const Icon(Icons.add, size: 20),
             label: Text(strings.addServer),
@@ -4195,6 +4343,7 @@ class _AddServerActions extends StatelessWidget {
 
     return PopupMenuButton<_AddServerAction>(
       tooltip: strings.addServer,
+      style: Theme.of(context).menuTriggerButtonStyle,
       onSelected: (action) {
         switch (action) {
           case _AddServerAction.manualEntry:
@@ -4205,14 +4354,15 @@ class _AddServerActions extends StatelessWidget {
       },
       itemBuilder: (context) => [
         _menuItem(
+          context: context,
           value: _AddServerAction.manualEntry,
           icon: Icons.edit_note,
           title: strings.enterServerManually,
         ),
-        if (supportsQrImport)
-          const PopupMenuDivider(height: 1),
+        if (supportsQrImport) const PopupMenuDivider(height: 1),
         if (supportsQrImport)
           _menuItem(
+            context: context,
             value: _AddServerAction.scanQr,
             icon: Icons.qr_code_scanner,
             title: strings.scanServerQr,
@@ -4220,7 +4370,7 @@ class _AddServerActions extends StatelessWidget {
       ],
       child: IgnorePointer(
         child: FilledButton.icon(
-          style: _largePrimaryFilledButtonStyle(),
+          style: Theme.of(context).largePrimaryFilledButtonStyle,
           onPressed: () {},
           icon: const Icon(Icons.add, size: 20),
           label: Text(strings.addServer),
@@ -4247,7 +4397,7 @@ class _MobileAddServerButton extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!supportsQrImport) {
       return FilledButton.icon(
-        style: _largePrimaryFilledButtonStyle(),
+        style: Theme.of(context).largePrimaryFilledButtonStyle,
         onPressed: onManualEntry,
         icon: const Icon(Icons.add, size: 20),
         label: Text(strings.addServer),
@@ -4256,6 +4406,7 @@ class _MobileAddServerButton extends StatelessWidget {
 
     return PopupMenuButton<_AddServerAction>(
       tooltip: strings.addServer,
+      style: Theme.of(context).menuTriggerButtonStyle,
       onSelected: (action) {
         switch (action) {
           case _AddServerAction.manualEntry:
@@ -4266,12 +4417,14 @@ class _MobileAddServerButton extends StatelessWidget {
       },
       itemBuilder: (context) => [
         _menuItem(
+          context: context,
           value: _AddServerAction.manualEntry,
           icon: Icons.edit_note,
           title: strings.enterServerManually,
         ),
         const PopupMenuDivider(height: 1),
         _menuItem(
+          context: context,
           value: _AddServerAction.scanQr,
           icon: Icons.qr_code_scanner,
           title: strings.scanServerQr,
@@ -4279,7 +4432,7 @@ class _MobileAddServerButton extends StatelessWidget {
       ],
       child: IgnorePointer(
         child: FilledButton.icon(
-          style: _largePrimaryFilledButtonStyle(),
+          style: Theme.of(context).largePrimaryFilledButtonStyle,
           onPressed: () {},
           icon: const Icon(Icons.add, size: 20),
           label: Text(strings.addServer),
@@ -4321,7 +4474,6 @@ class _ServerTileState extends State<ServerTile> {
   Widget build(BuildContext context) {
     final server = widget.server;
     final strings = widget.strings;
-    final isCompactLayout = MediaQuery.sizeOf(context).width < 640;
 
     if (MediaQuery.sizeOf(context).width < _mobileBreakpoint) {
       return _MobileServerCard(
@@ -4337,78 +4489,24 @@ class _ServerTileState extends State<ServerTile> {
       );
     }
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: ListTile(
-        leading: const Icon(Icons.dns),
-        title: Row(
-          children: [
-            Expanded(child: Text(server.name)),
-            IconButton(
-              tooltip: strings.exportServerQr,
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-              padding: EdgeInsets.zero,
-              onPressed: widget.onExportQr,
-              icon: const Icon(Icons.qr_code_2, size: 20),
-            ),
-          ],
-        ),
-        subtitle: isCompactLayout ? null : Text(server.baseUrl),
-        onTap: widget.onOpen,
-        trailing: Wrap(
-          spacing: 4,
-          children: [
-            IconButton(
-              tooltip: strings.testConnection,
-              onPressed: _testing ? null : _testServer,
-              icon: _testing
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.network_check),
-            ),
-            PopupMenuButton<_ServerTileAction>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (action) {
-                switch (action) {
-                  case _ServerTileAction.exportQr:
-                    widget.onExportQr();
-                  case _ServerTileAction.edit:
-                    widget.onEdit();
-                  case _ServerTileAction.delete:
-                    widget.onDelete();
-                }
-              },
-              itemBuilder: (context) => [
-                _menuItem(
-                  value: _ServerTileAction.exportQr,
-                  icon: Icons.qr_code_2,
-                  title: strings.exportServerQr,
-                ),
-                const PopupMenuDivider(height: 1),
-                _menuItem(
-                  value: _ServerTileAction.edit,
-                  icon: Icons.edit,
-                  title: strings.editServer,
-                ),
-                const PopupMenuDivider(height: 1),
-                _menuItem(
-                  value: _ServerTileAction.delete,
-                  icon: Icons.delete_outline,
-                  title: strings.deleteServer,
-                  destructive: true,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return _DesktopServerCard(
+      server: server,
+      strings: strings,
+      testing: _testing,
+      connectionState: _connectionState,
+      onOpen: widget.onOpen,
+      onTest: _testing ? null : _testServer,
+      onEdit: widget.onEdit,
+      onDelete: widget.onDelete,
+      onExportQr: widget.onExportQr,
     );
   }
 
   Future<void> _testServer() async {
+    if (_testing) {
+      return;
+    }
+
     setState(() {
       _testing = true;
       _connectionState = _ConnectionTestState.testing;
@@ -4458,6 +4556,172 @@ class _ServerTileState extends State<ServerTile> {
   }
 }
 
+class _DesktopServerCard extends StatelessWidget {
+  const _DesktopServerCard({
+    required this.server,
+    required this.strings,
+    required this.testing,
+    required this.connectionState,
+    required this.onOpen,
+    required this.onTest,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onExportQr,
+  });
+
+  final WebDavAccount server;
+  final AppStrings strings;
+  final bool testing;
+  final _ConnectionTestState connectionState;
+  final VoidCallback onOpen;
+  final VoidCallback? onTest;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onExportQr;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusColor = switch (connectionState) {
+      _ConnectionTestState.succeeded => theme.colorScheme.primary,
+      _ConnectionTestState.failed => theme.xylos.muted,
+      _ConnectionTestState.testing => theme.xylos.muted,
+      _ConnectionTestState.unknown => theme.colorScheme.primary,
+    };
+
+    return Material(
+      color: theme.xylos.surface,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      borderRadius: theme.smallRadius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        hoverColor: theme.listItemHoverColor,
+        splashColor: theme.listItemSplashColor,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(color: theme.colorScheme.primary),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.storage_outlined,
+                      size: 18,
+                      color: theme.primaryForegroundColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        server.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: theme.primaryForegroundColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: strings.exportServerQr,
+                      visualDensity: VisualDensity.compact,
+                      constraints:
+                          const BoxConstraints.tightFor(width: 32, height: 32),
+                      padding: EdgeInsets.zero,
+                      color: theme.primaryForegroundColor,
+                      onPressed: onExportQr,
+                      icon: const Icon(Icons.qr_code_2, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          server.baseUrl,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.xylos.text,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Icon(
+                              testing
+                                  ? Icons.circle_outlined
+                                  : Icons.circle,
+                              size: 11,
+                              color: statusColor,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              testing
+                                  ? strings.testingConnection
+                                  : server.authType.label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.xylos.text,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    tooltip: strings.testConnection,
+                    style: theme.desktopToolButtonStyle,
+                    onPressed: onTest,
+                    icon: testing
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.wifi, size: 20),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: strings.editServer,
+                    style: theme.desktopToolButtonStyle,
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit, size: 20),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: strings.deleteServer,
+                    style: theme.desktopToolButtonStyle,
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MobileServerCard extends StatelessWidget {
   const _MobileServerCard({
     required this.server,
@@ -4483,17 +4747,18 @@ class _MobileServerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final statusColor = switch (connectionState) {
-      _ConnectionTestState.succeeded => _mobilePrimary,
-      _ConnectionTestState.failed => _mobileMuted,
-      _ConnectionTestState.testing => _mobileMuted,
-      _ConnectionTestState.unknown => _mobilePrimary,
+      _ConnectionTestState.succeeded => theme.colorScheme.primary,
+      _ConnectionTestState.failed => theme.xylos.muted,
+      _ConnectionTestState.testing => theme.xylos.muted,
+      _ConnectionTestState.unknown => theme.colorScheme.primary,
     };
     return Material(
-      color: _mobileSurface,
+      color: theme.xylos.surface,
       elevation: 5,
-      shadowColor: Colors.black.withOpacity(0.16),
-      borderRadius: BorderRadius.circular(3),
+      shadowColor: theme.emphasizedShadowColor,
+      borderRadius: theme.smallRadius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
@@ -4501,7 +4766,7 @@ class _MobileServerCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DecoratedBox(
-              decoration: const BoxDecoration(color: _mobilePrimary),
+              decoration: BoxDecoration(color: theme.colorScheme.primary),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -4509,10 +4774,10 @@ class _MobileServerCard extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.storage_outlined,
                       size: 18,
-                      color: Colors.white,
+                      color: theme.primaryForegroundColor,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -4520,8 +4785,8 @@ class _MobileServerCard extends StatelessWidget {
                         server.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.colorScheme.onPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
@@ -4533,7 +4798,7 @@ class _MobileServerCard extends StatelessWidget {
                       constraints:
                           const BoxConstraints.tightFor(width: 32, height: 32),
                       padding: EdgeInsets.zero,
-                      color: Colors.white,
+                      color: theme.colorScheme.onPrimary,
                       onPressed: onExportQr,
                       icon: const Icon(Icons.qr_code_2, size: 20),
                     ),
@@ -4550,7 +4815,7 @@ class _MobileServerCard extends StatelessWidget {
                     server.baseUrl,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, color: _mobileText),
+                    style: TextStyle(fontSize: 15, color: theme.xylos.text),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -4563,10 +4828,10 @@ class _MobileServerCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       if (testing)
                         Text(
-                          strings.pendingSuffix,
-                          style: const TextStyle(
+                          strings.testingConnection,
+                          style: TextStyle(
                             fontSize: 12,
-                            color: _mobileText,
+                            color: theme.xylos.text,
                           ),
                         ),
                       const Spacer(),
@@ -4581,7 +4846,7 @@ class _MobileServerCard extends StatelessWidget {
                                   dimension: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: _mobilePrimary,
+                                    color: kAppPrimaryColor,
                                   ),
                                 )
                               : const Icon(Icons.wifi, size: 21),
@@ -4595,6 +4860,7 @@ class _MobileServerCard extends StatelessWidget {
                       _MobileIconButton(
                         tooltip: strings.deleteServer,
                         onPressed: onDelete,
+                        destructive: true,
                         icon: const Icon(Icons.delete_outline, size: 20),
                       ),
                     ],
@@ -4614,21 +4880,28 @@ class _MobileIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     required this.icon,
+    this.destructive = false,
   });
 
   final String tooltip;
   final VoidCallback? onPressed;
   final Widget icon;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return IconButton(
       tooltip: tooltip,
+      style: destructive
+          ? theme.mobileToolButtonStyle.copyWith(
+              foregroundColor: WidgetStatePropertyAll(
+                theme.xylos.destructive,
+              ),
+            )
+          : theme.mobileToolButtonStyle,
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
-      color: _mobilePrimary,
-      constraints: const BoxConstraints.tightFor(width: 36, height: 32),
-      padding: EdgeInsets.zero,
       icon: icon,
     );
   }
@@ -4696,110 +4969,116 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       return _buildMobile(context);
     }
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              title: '${widget.server.name} · ${strings.filesTitle}',
-              action: Wrap(
-                spacing: 8,
-                children: [
-                  PopupMenuButton<FileSortField>(
-                    tooltip: strings.sortBy,
-                    icon: const Icon(Icons.sort),
-                    initialValue: _sortField,
-                    onSelected: _changeSort,
-                    itemBuilder: (context) => [
-                      _menuItem(
-                        value: FileSortField.name,
-                        icon: Icons.sort_by_alpha,
-                        title: strings.sortByName,
-                      ),
-                      const PopupMenuDivider(height: 1),
-                      _menuItem(
-                        value: FileSortField.type,
-                        icon: Icons.category_outlined,
-                        title: strings.sortByType,
-                      ),
-                      const PopupMenuDivider(height: 1),
-                      _menuItem(
-                        value: FileSortField.size,
-                        icon: Icons.straighten,
-                        title: strings.sortBySize,
-                      ),
-                      const PopupMenuDivider(height: 1),
-                      _menuItem(
-                        value: FileSortField.modified,
-                        icon: Icons.schedule,
-                        title: strings.sortByModified,
-                      ),
-                    ],
-                  ),
-                  IconButton.filledTonal(
-                    tooltip: _viewMode == FileViewMode.list
-                        ? strings.gridView
-                        : strings.listView,
-                    onPressed: _toggleViewMode,
-                    icon: Icon(
-                      _viewMode == FileViewMode.list
-                          ? Icons.grid_view
-                          : Icons.view_list,
+    return ColoredBox(
+      color: Theme.of(context).xylos.background,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(
+                title: '${widget.server.name} · ${strings.filesTitle}',
+                action: Wrap(
+                  spacing: 8,
+                  children: [
+                    PopupMenuButton<FileSortField>(
+                      tooltip: strings.sortBy,
+                      icon: const Icon(Icons.sort),
+                      style: Theme.of(context).menuTriggerButtonStyle,
+                      initialValue: _sortField,
+                      onSelected: _changeSort,
+                      itemBuilder: (context) => [
+                        _menuItem(
+                          context: context,
+                          value: FileSortField.name,
+                          icon: Icons.sort_by_alpha,
+                          title: strings.sortByName,
+                        ),
+                        const PopupMenuDivider(height: 1),
+                        _menuItem(
+                          context: context,
+                          value: FileSortField.type,
+                          icon: Icons.category_outlined,
+                          title: strings.sortByType,
+                        ),
+                        const PopupMenuDivider(height: 1),
+                        _menuItem(
+                          context: context,
+                          value: FileSortField.size,
+                          icon: Icons.straighten,
+                          title: strings.sortBySize,
+                        ),
+                        const PopupMenuDivider(height: 1),
+                        _menuItem(
+                          context: context,
+                          value: FileSortField.modified,
+                          icon: Icons.schedule,
+                          title: strings.sortByModified,
+                        ),
+                      ],
                     ),
+                    IconButton(
+                      tooltip: _viewMode == FileViewMode.list
+                          ? strings.gridView
+                          : strings.listView,
+                      style: Theme.of(context).desktopToolButtonStyle,
+                      onPressed: _toggleViewMode,
+                      icon: Icon(
+                        _viewMode == FileViewMode.list
+                            ? Icons.grid_view
+                            : Icons.view_list,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: strings.uploadFile,
+                      style: Theme.of(context).desktopToolButtonStyle,
+                      onPressed: _mutating ? null : _uploadFile,
+                      icon: const Icon(Icons.upload_file),
+                    ),
+                    IconButton(
+                      tooltip: strings.createDirectory,
+                      style: Theme.of(context).desktopToolButtonStyle,
+                      onPressed: _mutating ? null : _createDirectory,
+                      icon: const Icon(Icons.create_new_folder),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: strings.parentDirectory,
+                    style: Theme.of(context).desktopToolButtonStyle,
+                    onPressed: _navigateBack,
+                    icon: const Icon(Icons.arrow_back),
                   ),
-                  IconButton.filledTonal(
-                    tooltip: strings.uploadFile,
-                    onPressed: _mutating ? null : _uploadFile,
-                    icon: const Icon(Icons.upload_file),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: strings.refresh,
+                    style: Theme.of(context).desktopToolButtonStyle,
+                    onPressed: _loading ? null : _loadPath,
+                    icon: const Icon(Icons.refresh),
                   ),
-                  IconButton.filledTonal(
-                    tooltip: strings.createDirectory,
-                    onPressed: _mutating ? null : _createDirectory,
-                    icon: const Icon(Icons.create_new_folder),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextFormField(
+                      key: ValueKey(_path),
+                      initialValue: _path,
+                      decoration: Theme.of(context).desktopFieldDecoration(),
+                      onFieldSubmitted: (value) {
+                        _path = value.trim().isEmpty ? '/' : value.trim();
+                        _loadPath();
+                      },
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                IconButton.filledTonal(
-                  tooltip: strings.parentDirectory,
-                  onPressed: _navigateBack,
-                  icon: const Icon(Icons.arrow_back),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: strings.refresh,
-                  onPressed: _loading ? null : _loadPath,
-                  icon: const Icon(Icons.refresh),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    key: ValueKey(_path),
-                    initialValue: _path,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                      isDense: true,
-                    ),
-                    onFieldSubmitted: (value) {
-                      _path = value.trim().isEmpty ? '/' : value.trim();
-                      _loadPath();
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(child: _buildFileList()),
-          ],
+              const SizedBox(height: 16),
+              Expanded(child: _buildFileList()),
+            ],
+          ),
         ),
       ),
     );
@@ -4807,7 +5086,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
 
   Widget _buildMobile(BuildContext context) {
     return ColoredBox(
-      color: _mobileSurface,
+      color: Theme.of(context).xylos.surface,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
         child: Column(
@@ -4857,18 +5136,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                   _mobileSearchQuery = value.trim().toLowerCase();
                 });
               },
-              decoration: InputDecoration(
-                hintText: 'Search',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                filled: true,
-                fillColor: const Color(0xFFEDEDEF),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(3),
-                  borderSide: BorderSide.none,
-                ),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 9),
-              ),
+              decoration: Theme.of(context).mobileSearchDecoration,
             ),
             const SizedBox(height: 14),
             Expanded(child: _buildMobileFileList()),
@@ -4881,29 +5149,34 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   Future<void> _showMobileAddMenu(BuildContext context) async {
     final action = await showModalBottomSheet<_FileAction>(
       context: context,
+      backgroundColor: Theme.of(context).subtleSurfaceColor,
+      shape: Theme.of(context).bottomSheetShape,
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.upload_file),
-                title: Text(widget.strings.uploadFile),
-                onTap: () => Navigator.of(context).pop(_FileAction.upload),
-              ),
-              ListTile(
-                leading: const Icon(Icons.create_new_folder),
-                title: Text(widget.strings.createDirectory),
-                onTap: () =>
-                    Navigator.of(context).pop(_FileAction.createDirectory),
-              ),
-              ListTile(
-                leading: const Icon(Icons.edit_location_alt_outlined),
-                title: Text(widget.strings.currentPath),
-                onTap: () => Navigator.of(context).pop(_FileAction.editPath),
-              ),
-            ],
-          ),
+        return _mobileBottomSheet(
+          context: context,
+          children: [
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.upload_file,
+              title: widget.strings.uploadFile,
+              onTap: () => Navigator.of(context).pop(_FileAction.upload),
+            ),
+            _themedDivider(context, indent: 48),
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.create_new_folder,
+              title: widget.strings.createDirectory,
+              onTap: () =>
+                  Navigator.of(context).pop(_FileAction.createDirectory),
+            ),
+            _themedDivider(context, indent: 48),
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.edit_location_alt_outlined,
+              title: widget.strings.currentPath,
+              onTap: () => Navigator.of(context).pop(_FileAction.editPath),
+            ),
+          ],
         );
       },
     );
@@ -4934,23 +5207,18 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: _primaryOutlinedInputDecoration(
-              widget.strings.currentPath,
+            decoration: Theme.of(context).desktopFieldDecoration(
+              labelText: widget.strings.currentPath,
             ),
             onSubmitted: (value) => Navigator.of(context).pop(value),
           ),
-          actions: [
-            TextButton(
-              style: _primaryTextButtonStyle(),
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(widget.strings.cancel),
-            ),
-            FilledButton(
-              style: _primaryFilledButtonStyle(),
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: Text(widget.strings.save),
-            ),
-          ],
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: _dialogActions(
+            context,
+            cancelLabel: widget.strings.cancel,
+            confirmLabel: widget.strings.save,
+            onConfirm: () => Navigator.of(context).pop(controller.text),
+          ),
         );
       },
     );
@@ -4966,33 +5234,40 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   Future<void> _showMobileSortMenu(BuildContext context) async {
     final field = await showModalBottomSheet<FileSortField>(
       context: context,
+      backgroundColor: Theme.of(context).subtleSurfaceColor,
+      shape: Theme.of(context).bottomSheetShape,
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.drive_file_rename_outline),
-                title: Text(widget.strings.sortByName),
-                onTap: () => Navigator.of(context).pop(FileSortField.name),
-              ),
-              ListTile(
-                leading: const Icon(Icons.category_outlined),
-                title: Text(widget.strings.sortByType),
-                onTap: () => Navigator.of(context).pop(FileSortField.type),
-              ),
-              ListTile(
-                leading: const Icon(Icons.data_usage),
-                title: Text(widget.strings.sortBySize),
-                onTap: () => Navigator.of(context).pop(FileSortField.size),
-              ),
-              ListTile(
-                leading: const Icon(Icons.schedule),
-                title: Text(widget.strings.sortByModified),
-                onTap: () => Navigator.of(context).pop(FileSortField.modified),
-              ),
-            ],
-          ),
+        return _mobileBottomSheet(
+          context: context,
+          children: [
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.drive_file_rename_outline,
+              title: widget.strings.sortByName,
+              onTap: () => Navigator.of(context).pop(FileSortField.name),
+            ),
+            _themedDivider(context, indent: 48),
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.category_outlined,
+              title: widget.strings.sortByType,
+              onTap: () => Navigator.of(context).pop(FileSortField.type),
+            ),
+            _themedDivider(context, indent: 48),
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.data_usage,
+              title: widget.strings.sortBySize,
+              onTap: () => Navigator.of(context).pop(FileSortField.size),
+            ),
+            _themedDivider(context, indent: 48),
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.schedule,
+              title: widget.strings.sortByModified,
+              onTap: () => Navigator.of(context).pop(FileSortField.modified),
+            ),
+          ],
         );
       },
     );
@@ -5052,20 +5327,30 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final resource = _resources[index];
-        return ListTile(
-          leading: FileResourceLeading(
-            resource: resource,
-            imageSource: _imageSource(resource),
+        return Material(
+          color: Colors.transparent,
+          child: ListTile(
+            shape: Theme.of(context).tileShape(),
+            tileColor: Colors.transparent,
+            hoverColor: Theme.of(context).listItemHoverColor,
+            splashColor: Theme.of(context).listItemSplashColor,
+            iconColor: Theme.of(context).mutedIconColor,
+            textColor: Theme.of(context).xylos.text,
+            leading: FileResourceLeading(
+              resource: resource,
+              imageSource: _imageSource(resource),
+              showBackground: false,
+            ),
+            title: Text(resource.name),
+            subtitle: Text(_resourceSubtitle(resource)),
+            trailing: FileActionsMenu(
+              strings: strings,
+              mutating: _mutating,
+              onDownload: () => _download(resource),
+              onDelete: () => _deleteResource(resource),
+            ),
+            onTap: () => _openResource(resource),
           ),
-          title: Text(resource.name),
-          subtitle: Text(_resourceSubtitle(resource)),
-          trailing: FileActionsMenu(
-            strings: strings,
-            mutating: _mutating,
-            onDownload: () => _download(resource),
-            onDelete: () => _deleteResource(resource),
-          ),
-          onTap: () => _openResource(resource),
         );
       },
     );
@@ -5129,9 +5414,9 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 20),
       itemCount: visibleResources.length,
-      separatorBuilder: (_, __) => const Divider(
+      separatorBuilder: (_, __) => Divider(
         height: 1,
-        color: _mobileBorder,
+        color: Theme.of(context).xylos.border,
         indent: 56,
       ),
       itemBuilder: (context, index) {
@@ -5359,16 +5644,14 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
               child: Text(failedNames.join('\n')),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(widget.strings.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(widget.strings.retry),
-            ),
-          ],
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: _dialogActions(
+            context,
+            cancelLabel: widget.strings.cancel,
+            confirmLabel: widget.strings.retry,
+            onCancel: () => Navigator.of(context).pop(false),
+            onConfirm: () => Navigator.of(context).pop(true),
+          ),
         );
       },
     );
@@ -5377,23 +5660,26 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   Future<List<_PickedUploadFile>> _pickUploadFilesForMobile() async {
     final source = await showModalBottomSheet<_UploadSource>(
       context: context,
+      backgroundColor: Theme.of(context).subtleSurfaceColor,
+      shape: Theme.of(context).bottomSheetShape,
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.folder_open),
-                title: Text(widget.strings.uploadFromFiles),
-                onTap: () => Navigator.of(context).pop(_UploadSource.files),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: Text(widget.strings.uploadFromMedia),
-                onTap: () => Navigator.of(context).pop(_UploadSource.media),
-              ),
-            ],
-          ),
+        return _mobileBottomSheet(
+          context: context,
+          children: [
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.folder_open,
+              title: widget.strings.uploadFromFiles,
+              onTap: () => Navigator.of(context).pop(_UploadSource.files),
+            ),
+            _themedDivider(context, indent: 48),
+            _mobileSheetTile(
+              context: context,
+              icon: Icons.photo_library_outlined,
+              title: widget.strings.uploadFromMedia,
+              onTap: () => Navigator.of(context).pop(_UploadSource.media),
+            ),
+          ],
         );
       },
     );
@@ -5461,18 +5747,14 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         return AlertDialog(
           title: Text(widget.strings.delete),
           content: Text(widget.strings.deleteResourceConfirm(resource.name)),
-          actions: [
-            TextButton(
-              style: _primaryTextButtonStyle(),
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(widget.strings.cancel),
-            ),
-            FilledButton(
-              style: _primaryFilledButtonStyle(),
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(widget.strings.delete),
-            ),
-          ],
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: _dialogActions(
+            context,
+            cancelLabel: widget.strings.cancel,
+            confirmLabel: widget.strings.delete,
+            onCancel: () => Navigator.of(context).pop(false),
+            onConfirm: () => Navigator.of(context).pop(true),
+          ),
         );
       },
     );
@@ -5963,25 +6245,21 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         return AlertDialog(
           title: Text(title),
           content: TextField(
-            decoration: _primaryOutlinedInputDecoration(label),
+            decoration:
+                Theme.of(context).desktopFieldDecoration(labelText: label),
             autofocus: true,
             onChanged: (value) {
               input = value;
             },
             onSubmitted: (value) => Navigator.of(context).pop(value),
           ),
-          actions: [
-            TextButton(
-              style: _primaryTextButtonStyle(),
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(widget.strings.cancel),
-            ),
-            FilledButton(
-              style: _primaryFilledButtonStyle(),
-              onPressed: () => Navigator.of(context).pop(input),
-              child: Text(widget.strings.save),
-            ),
-          ],
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: _dialogActions(
+            context,
+            cancelLabel: widget.strings.cancel,
+            confirmLabel: widget.strings.save,
+            onConfirm: () => Navigator.of(context).pop(input),
+          ),
         );
       },
     );
@@ -6051,10 +6329,12 @@ class FileResourceLeading extends StatelessWidget {
     super.key,
     required this.resource,
     required this.imageSource,
+    this.showBackground = true,
   });
 
   final WebDavResource resource;
   final RemoteImageSource? imageSource;
+  final bool showBackground;
 
   @override
   Widget build(BuildContext context) {
@@ -6063,19 +6343,20 @@ class FileResourceLeading extends StatelessWidget {
       imageSource: imageSource,
       iconSize: 24,
     );
+    final useBackground = showBackground && imageSource == null;
     return SizedBox.square(
       dimension: 44,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _mobileSurface,
-          borderRadius: BorderRadius.circular(3),
+          color: useBackground ? Theme.of(context).xylos.surface : null,
+          borderRadius: Theme.of(context).smallRadius,
         ),
         child: Padding(
-          padding: EdgeInsets.all(imageSource == null ? 4 : 0),
+          padding: const EdgeInsets.all(4),
           child: imageSource == null
               ? preview
               : ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: Theme.of(context).smallRadius,
                   child: preview,
                 ),
         ),
@@ -6107,8 +6388,11 @@ class _MobileFileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onOpen,
+      hoverColor: theme.listItemHoverColor,
+      splashColor: theme.listItemSplashColor,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
@@ -6123,8 +6407,8 @@ class _MobileFileRow extends StatelessWidget {
                     resource.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _mobileText,
+                    style: TextStyle(
+                      color: theme.xylos.text,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -6134,8 +6418,8 @@ class _MobileFileRow extends StatelessWidget {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _mobileMuted,
+                    style: TextStyle(
+                      color: theme.xylos.muted,
                       fontSize: 11,
                     ),
                   ),
@@ -6177,17 +6461,14 @@ class FileGridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Material(
-      color: colorScheme.surfaceContainerHighest.withOpacity(0.35),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(3),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
+      color: Theme.of(context).subtleSurfaceColor,
+      shape: Theme.of(context).cardShape(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
+        hoverColor: Theme.of(context).listItemHoverColor,
+        splashColor: Theme.of(context).listItemSplashColor,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -6262,6 +6543,7 @@ class FileActionsMenu extends StatelessWidget {
       tooltip: strings.delete,
       enabled: !mutating,
       icon: const Icon(Icons.more_vert),
+      style: Theme.of(context).menuTriggerButtonStyle,
       onSelected: (action) {
         switch (action) {
           case _FileAction.upload:
@@ -6277,12 +6559,14 @@ class FileActionsMenu extends StatelessWidget {
       itemBuilder: (context) => [
         if (onDownload != null)
           _menuItem(
+            context: context,
             value: _FileAction.download,
             icon: Icons.download,
             title: strings.download,
           ),
         if (onDownload != null) const PopupMenuDivider(height: 1),
         _menuItem(
+          context: context,
           value: _FileAction.delete,
           icon: Icons.delete_outline,
           title: strings.delete,
@@ -6448,17 +6732,20 @@ class ResourceIconPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final backgroundColor =
-        resource.isDirectory ? _mobilePrimary : _mobileSurface;
+        resource.isDirectory ? theme.colorScheme.primary : theme.xylos.surface;
     final foregroundColor =
-        resource.isDirectory ? Colors.white : const Color(0xFF7A7D80);
+        resource.isDirectory
+            ? theme.primaryForegroundColor
+            : theme.xylos.muted;
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: backgroundColor,
         border: resource.isDirectory
             ? null
-            : Border.all(color: const Color(0xFF9EA1A3)),
+            : Border.all(color: theme.xylos.moduleBorder),
         borderRadius: BorderRadius.circular(resource.isDirectory ? 3 : 2),
       ),
       child: Center(
