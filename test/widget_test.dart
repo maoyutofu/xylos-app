@@ -6,6 +6,7 @@ import 'package:xylos/models/webdav_account.dart';
 import 'package:xylos/main.dart';
 import 'package:xylos/models/transfer_record.dart';
 import 'package:xylos/services/account_store.dart';
+import 'package:xylos/services/server_qr_payload.dart';
 import 'package:xylos/services/webdav_client.dart';
 import 'package:xylos/ui/home_page.dart';
 
@@ -236,6 +237,57 @@ void main() {
       ),
       'Request failed with HTTP status 500. Internal Server Error',
     );
+  });
+
+  test('encodes and decodes encrypted server QR payload', () {
+    const server = WebDavAccount(
+      id: 'server-qr',
+      name: 'Office NAS',
+      baseUrl: 'https://dav.example.com/files',
+      authType: AuthType.digest,
+      digestAlgorithm: DigestAlgorithm.sha256,
+      username: 'alice',
+      secret: 's3cr3t',
+      defaultPath: '/',
+      allowHttp: false,
+      trustSelfSignedCert: true,
+    );
+
+    final payload = encodeServerQrPayload(server, 'passphrase');
+    final decoded = decodeServerQrPayload(payload, 'passphrase');
+
+    expect(payload, startsWith(serverQrPayloadPrefix));
+    expect(decoded.name, server.name);
+    expect(decoded.baseUrl, server.baseUrl);
+    expect(decoded.secret, server.secret);
+    expect(decoded.authType, server.authType);
+  });
+
+  testWidgets('hides QR import on desktop and keeps QR export in menu',
+      (WidgetTester tester) async {
+    const server = WebDavAccount(
+      id: 'server-qr-ui',
+      name: 'Local NAS',
+      baseUrl: 'https://dav.example.com',
+      authType: AuthType.basic,
+      digestAlgorithm: DigestAlgorithm.md5,
+      username: 'admin',
+      secret: '',
+      defaultPath: '/',
+      allowHttp: false,
+      trustSelfSignedCert: false,
+    );
+
+    await pumpDefaultApp(tester, servers: const [server]);
+
+    expect(find.text('扫码导入'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('二维码导出'), findsOneWidget);
+    expect(find.text('编辑服务器'), findsOneWidget);
+    expect(find.text('删除服务器'), findsOneWidget);
   });
 
   test('stores server secrets only in local encrypted vault after unlock',

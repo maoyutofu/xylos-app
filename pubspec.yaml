@@ -43,6 +43,8 @@ dependencies:
   open_filex: ^4.7.0
   path_provider: ^2.1.5
   url_launcher: ^6.3.1
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.11
 
 dev_dependencies:
   flutter_test:
@@ -69,7 +71,7 @@ flutter_launcher_icons:
     icon_size: 256
   macos:
     generate: true
-    image_path: assets/icon.png
+    image_path: assets/icon-macos.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_version.dart';
@@ -15,6 +17,7 @@ import '../models/webdav_resource.dart';
 import '../services/account_store.dart';
 import '../services/app_logger.dart';
 import '../services/local_crypto.dart';
+import '../services/server_qr_payload.dart';
 import '../services/webdav_client.dart';
 
 class HomePage extends StatefulWidget {
@@ -220,6 +223,8 @@ class _HomePageState extends State<HomePage> {
           strings: strings,
           onOpen: _openServer,
           onHydrateServer: _hydrateServerForSession,
+          onExportServerQr: _exportServerQr,
+          onImportServerFromQr: _importServerFromQr,
           onChanged: _replaceServers,
         );
       case 1:
@@ -711,6 +716,65 @@ class _HomePageState extends State<HomePage> {
         .toList();
     await _replaceServers(servers);
     return strings.importSucceeded(servers.length);
+  }
+
+  Future<String?> _importServerFromQr() async {
+    if (!widget.store.isSessionUnlocked) {
+      final passphrase = await _promptSessionPassphrase(forceUnlockTitle: true);
+      if (passphrase == null || passphrase.isEmpty) {
+        return null;
+      }
+      await widget.store.unlockSession(passphrase);
+    }
+    final passphrase = widget.store.sessionPassphrase;
+    if (passphrase == null || passphrase.isEmpty) {
+      throw const FormatException('Passphrase is required.');
+    }
+    if (!mounted) {
+      return null;
+    }
+    final content = await showDialog<String?>(
+      context: context,
+      builder: (context) => QrScannerDialog(strings: strings),
+    );
+    if (content == null || content.isEmpty) {
+      return null;
+    }
+    final server = decodeServerQrPayload(content, passphrase);
+    await _upsertImportedServer(server);
+    return strings.importServerSucceeded(server.name);
+  }
+
+  Future<void> _upsertImportedServer(WebDavAccount server) async {
+    final nextServers = [..._servers];
+    final index = nextServers.indexWhere((item) => item.id == server.id);
+    if (index == -1) {
+      nextServers.add(server);
+    } else {
+      nextServers[index] = server;
+    }
+    await _replaceServers(nextServers);
+  }
+
+  Future<String> _exportServerQr(WebDavAccount server) async {
+    final hydratedServer = await _hydrateServerForSession(server);
+    final passphrase = widget.store.sessionPassphrase;
+    if (passphrase == null || passphrase.isEmpty) {
+      throw const FormatException('Passphrase is required.');
+    }
+    final payload = encodeServerQrPayload(hydratedServer, passphrase);
+    if (!mounted) {
+      return strings.serverQrExported;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ServerQrDialog(
+        strings: strings,
+        server: hydratedServer,
+        payload: payload,
+      ),
+    );
+    return strings.serverQrExported;
   }
 
   Future<void> _persistTransfers() async {
@@ -1381,6 +1445,8 @@ class TransfersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final supportsQrImport = Platform.isAndroid || Platform.isIOS;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1802,6 +1868,12 @@ enum _OfflineEntryAction {
   delete;
 }
 
+enum _ServerTileAction {
+  exportQr,
+  edit,
+  delete;
+}
+
 class _OfflineEntryPreview extends StatelessWidget {
   const _OfflineEntryPreview({required this.entry});
 
@@ -1975,6 +2047,114 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
+class ServerQrDialog extends StatelessWidget {
+  const ServerQrDialog({
+    super.key,
+    required this.strings,
+    required this.server,
+    required this.payload,
+  });
+
+  final AppStrings strings;
+  final WebDavAccount server;
+  final String payload;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(strings.exportServerQr),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              server.name,
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            QrImageView(
+              data: payload,
+              size: 240,
+              backgroundColor: Colors.white,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              strings.serverQrHint,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(strings.close),
+        ),
+      ],
+    );
+  }
+}
+
+class QrScannerDialog extends StatefulWidget {
+  const QrScannerDialog({super.key, required this.strings});
+
+  final AppStrings strings;
+
+  @override
+  State<QrScannerDialog> createState() => _QrScannerDialogState();
+}
+
+class _QrScannerDialogState extends State<QrScannerDialog> {
+  bool _handled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.strings.scanServerQr),
+      content: SizedBox(
+        width: 360,
+        height: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: MobileScanner(
+                  onDetect: (capture) {
+                    if (_handled) {
+                      return;
+                    }
+                    final value = capture.barcodes.first.rawValue?.trim() ?? '';
+                    if (value.isEmpty) {
+                      return;
+                    }
+                    _handled = true;
+                    Navigator.of(context).pop(value);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.strings.scanServerQrHint,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(widget.strings.cancel),
+        ),
+      ],
+    );
+  }
+}
+
 enum AppLanguage {
   zh('zh'),
   en('en');
@@ -2084,6 +2264,12 @@ class AppStrings {
     required this.language,
     required this.exportServers,
     required this.importServers,
+    required this.exportServerQr,
+    required this.scanServerQr,
+    required this.serverQrHint,
+    required this.scanServerQrHint,
+    required this.serverQrExported,
+    required this.importServerSucceededTemplate,
     required this.exportSucceededTemplate,
     required this.importSucceededTemplate,
     required this.configActionFailedTemplate,
@@ -2111,6 +2297,7 @@ class AppStrings {
     required this.trustSelfSignedCert,
     required this.trustSelfSignedCertDescription,
     required this.cancel,
+    required this.close,
     required this.delete,
     required this.save,
     required this.requiredField,
@@ -2216,6 +2403,12 @@ class AppStrings {
   final String language;
   final String exportServers;
   final String importServers;
+  final String exportServerQr;
+  final String scanServerQr;
+  final String serverQrHint;
+  final String scanServerQrHint;
+  final String serverQrExported;
+  final String importServerSucceededTemplate;
   final String exportSucceededTemplate;
   final String importSucceededTemplate;
   final String configActionFailedTemplate;
@@ -2243,6 +2436,7 @@ class AppStrings {
   final String trustSelfSignedCert;
   final String trustSelfSignedCertDescription;
   final String cancel;
+  final String close;
   final String delete;
   final String save;
   final String requiredField;
@@ -2319,6 +2513,10 @@ class AppStrings {
 
   String importSucceeded(int count) {
     return importSucceededTemplate.replaceAll('{count}', '$count');
+  }
+
+  String importServerSucceeded(String name) {
+    return importServerSucceededTemplate.replaceAll('{name}', name);
   }
 
   String configActionFailed(String message) {
@@ -2470,6 +2668,12 @@ class AppStrings {
     language: '语言',
     exportServers: '导出配置',
     importServers: '导入配置',
+    exportServerQr: '二维码导出',
+    scanServerQr: '扫码导入',
+    serverQrHint: '使用另一台设备上的 Xylos 扫描此二维码，即可导入当前服务器配置。',
+    scanServerQrHint: '将二维码放入取景框内，识别后会自动导入服务器配置。',
+    serverQrExported: '二维码已生成',
+    importServerSucceededTemplate: '已导入服务器“{name}”',
     exportSucceededTemplate: '配置已导出到 {path}',
     importSucceededTemplate: '已导入 {count} 个服务器',
     configActionFailedTemplate: '配置操作失败：{message}',
@@ -2497,6 +2701,7 @@ class AppStrings {
     trustSelfSignedCert: '信任自签名证书',
     trustSelfSignedCertDescription: '仅对当前服务器生效',
     cancel: '取消',
+    close: '关闭',
     delete: '删除',
     save: '保存',
     requiredField: '必填',
@@ -2613,6 +2818,14 @@ class AppStrings {
     language: 'Language',
     exportServers: 'Export Config',
     importServers: 'Import Config',
+    exportServerQr: 'Export QR Code',
+    scanServerQr: 'Scan QR Code',
+    serverQrHint:
+        'Scan this QR code with Xylos on another device to import this server configuration.',
+    scanServerQrHint:
+        'Place the QR code inside the frame. The server configuration will import automatically after detection.',
+    serverQrExported: 'QR code generated',
+    importServerSucceededTemplate: 'Imported server "{name}"',
     exportSucceededTemplate: 'Configuration exported to {path}',
     importSucceededTemplate: 'Imported {count} servers',
     configActionFailedTemplate: 'Configuration action failed: {message}',
@@ -2641,6 +2854,7 @@ class AppStrings {
     trustSelfSignedCert: 'Trust Self-Signed Certificate',
     trustSelfSignedCertDescription: 'Applies only to this server',
     cancel: 'Cancel',
+    close: 'Close',
     delete: 'Delete',
     save: 'Save',
     requiredField: 'Required',
@@ -2817,6 +3031,8 @@ class ServersPage extends StatelessWidget {
     required this.strings,
     required this.onOpen,
     required this.onHydrateServer,
+    required this.onExportServerQr,
+    required this.onImportServerFromQr,
     required this.onChanged,
   });
 
@@ -2824,10 +3040,14 @@ class ServersPage extends StatelessWidget {
   final AppStrings strings;
   final Future<void> Function(WebDavAccount server) onOpen;
   final Future<WebDavAccount> Function(WebDavAccount server) onHydrateServer;
+  final Future<String> Function(WebDavAccount server) onExportServerQr;
+  final Future<String?> Function() onImportServerFromQr;
   final ValueChanged<List<WebDavAccount>> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final supportsQrImport = Platform.isAndroid || Platform.isIOS;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -2836,10 +3056,22 @@ class ServersPage extends StatelessWidget {
           children: [
             SectionHeader(
               title: strings.serversTitle,
-              action: FilledButton.icon(
-                onPressed: () => _openEditor(context),
-                icon: const Icon(Icons.add),
-                label: Text(strings.addServer),
+              action: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (supportsQrImport)
+                    OutlinedButton.icon(
+                      onPressed: () => _runImportServerQr(context),
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: Text(strings.scanServerQr),
+                    ),
+                  FilledButton.icon(
+                    onPressed: () => _openEditor(context),
+                    icon: const Icon(Icons.add),
+                    label: Text(strings.addServer),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -2866,6 +3098,7 @@ class ServersPage extends StatelessWidget {
                           onOpen: () => onOpen(server),
                           onEdit: () => _openEditor(context, server: server),
                           onDelete: () => _deleteServer(context, server),
+                          onExportQr: () => _runExportServerQr(context, server),
                           onHydrateServer: onHydrateServer,
                         );
                       },
@@ -2937,6 +3170,39 @@ class ServersPage extends StatelessWidget {
     }
     onChanged(servers.where((item) => item.id != server.id).toList());
   }
+
+  Future<void> _runExportServerQr(
+    BuildContext context,
+    WebDavAccount server,
+  ) async {
+    try {
+      final message = await onExportServerQr(server);
+      if (!context.mounted) {
+        return;
+      }
+      _showSnackBar(context, message);
+    } on FormatException catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      _showSnackBar(context, strings.configActionFailed(error.message));
+    }
+  }
+
+  Future<void> _runImportServerQr(BuildContext context) async {
+    try {
+      final message = await onImportServerFromQr();
+      if (message == null || !context.mounted) {
+        return;
+      }
+      _showSnackBar(context, message);
+    } on FormatException catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      _showSnackBar(context, strings.configActionFailed(error.message));
+    }
+  }
 }
 
 class ServerTile extends StatefulWidget {
@@ -2947,6 +3213,7 @@ class ServerTile extends StatefulWidget {
     required this.onOpen,
     required this.onEdit,
     required this.onDelete,
+    required this.onExportQr,
     required this.onHydrateServer,
   });
 
@@ -2955,6 +3222,7 @@ class ServerTile extends StatefulWidget {
   final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onExportQr;
   final Future<WebDavAccount> Function(WebDavAccount server) onHydrateServer;
 
   @override
@@ -2968,13 +3236,14 @@ class _ServerTileState extends State<ServerTile> {
   Widget build(BuildContext context) {
     final server = widget.server;
     final strings = widget.strings;
+    final isCompactLayout = MediaQuery.sizeOf(context).width < 640;
 
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: const Icon(Icons.dns),
         title: Text(server.name),
-        subtitle: Text(server.baseUrl),
+        subtitle: isCompactLayout ? null : Text(server.baseUrl),
         onTap: widget.onOpen,
         trailing: Wrap(
           spacing: 4,
@@ -2989,15 +3258,44 @@ class _ServerTileState extends State<ServerTile> {
                     )
                   : const Icon(Icons.network_check),
             ),
-            IconButton(
-              tooltip: strings.editServer,
-              onPressed: widget.onEdit,
-              icon: const Icon(Icons.edit),
-            ),
-            IconButton(
-              tooltip: strings.deleteServer,
-              onPressed: widget.onDelete,
-              icon: const Icon(Icons.delete_outline),
+            PopupMenuButton<_ServerTileAction>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (action) {
+                switch (action) {
+                  case _ServerTileAction.exportQr:
+                    widget.onExportQr();
+                  case _ServerTileAction.edit:
+                    widget.onEdit();
+                  case _ServerTileAction.delete:
+                    widget.onDelete();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _ServerTileAction.exportQr,
+                  child: ListTile(
+                    leading: const Icon(Icons.qr_code_2),
+                    title: Text(strings.exportServerQr),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _ServerTileAction.edit,
+                  child: ListTile(
+                    leading: const Icon(Icons.edit),
+                    title: Text(strings.editServer),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _ServerTileAction.delete,
+                  child: ListTile(
+                    leading: const Icon(Icons.delete_outline),
+                    title: Text(strings.deleteServer),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -3407,7 +3705,8 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         action: () async {
           final path = pickedUpload.path;
           if (path != null) {
-            await WebDavClient(widget.server).uploadFile(remotePath, File(path));
+            await WebDavClient(widget.server)
+                .uploadFile(remotePath, File(path));
             return;
           }
 
