@@ -4,7 +4,7 @@ import 'app_version.dart';
 import 'services/account_store.dart';
 import 'ui/home_page.dart';
 
-const kAppButtonRadius = 4.0;
+const kAppButtonRadius = 10.0;
 const kAppFontFamilyFallback = <String>[
   'Microsoft YaHei UI',
   'Microsoft YaHei',
@@ -33,7 +33,7 @@ class XylosApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1F7A68),
+          seedColor: const Color(0xFF57C9A3),
           brightness: Brightness.light,
         ),
         fontFamily: 'Microsoft YaHei UI',

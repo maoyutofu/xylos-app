@@ -126,7 +126,7 @@ void main() {
       'xylos.servers.v1': ['not-json'],
       'xylos.transfers.v1': ['not-json'],
     });
-    final store = AccountStore();
+    const store = AccountStore();
     final servers = await store.loadServers();
     final transfers = await store.loadTransfers();
 
