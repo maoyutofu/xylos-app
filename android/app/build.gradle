@@ -13,6 +13,36 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader("UTF-8") { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
+def releaseStoreFile = keystoreProperties.getProperty("storeFile")
+if (releaseStoreFile == null || releaseStoreFile.trim().isEmpty()) {
+    releaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
+}
+def releaseStorePassword = keystoreProperties.getProperty("storePassword")
+if (releaseStorePassword == null || releaseStorePassword.trim().isEmpty()) {
+    releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+}
+def releaseKeyAlias = keystoreProperties.getProperty("keyAlias")
+if (releaseKeyAlias == null || releaseKeyAlias.trim().isEmpty()) {
+    releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+}
+def releaseKeyPassword = keystoreProperties.getProperty("keyPassword")
+if (releaseKeyPassword == null || releaseKeyPassword.trim().isEmpty()) {
+    releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+}
+def hasReleaseSigning =
+        releaseStoreFile != null && !releaseStoreFile.trim().isEmpty() &&
+        releaseStorePassword != null && !releaseStorePassword.trim().isEmpty() &&
+        releaseKeyAlias != null && !releaseKeyAlias.trim().isEmpty() &&
+        releaseKeyPassword != null && !releaseKeyPassword.trim().isEmpty()
+
 def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
 if (flutterVersionCode == null) {
     flutterVersionCode = "1"
@@ -48,9 +78,20 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.release
+            }
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
 

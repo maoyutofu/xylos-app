@@ -72,6 +72,19 @@ flutter build apk --release
 flutter build appbundle --release
 ```
 
+Android release signing:
+
+```sh
+cp android/key.properties.example android/key.properties
+```
+
+Fill `android/key.properties` with your keystore path and passwords, or set these environment variables for CI:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
 iOS:
 
 ```sh

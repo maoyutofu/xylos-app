@@ -72,6 +72,19 @@ flutter build apk --release
 flutter build appbundle --release
 ```
 
+Android 正式签名：
+
+```sh
+cp android/key.properties.example android/key.properties
+```
+
+然后把 `android/key.properties` 填成你自己的 keystore 路径和密码。CI 也可以改用以下环境变量：
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
 iOS：
 
 ```sh

@@ -1,0 +1,4 @@
+storeFile=../android/release.keystore
+storePassword=your-store-password
+keyAlias=your-key-alias
+keyPassword=your-key-password

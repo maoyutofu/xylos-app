@@ -167,7 +167,6 @@ class _HomePageState extends State<HomePage> {
         }
 
         return Scaffold(
-          appBar: AppBar(title: Text(_sectionTitle)),
           body: _buildSection(),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedIndex,
@@ -257,23 +256,6 @@ class _HomePageState extends State<HomePage> {
         );
       default:
         return const SizedBox.shrink();
-    }
-  }
-
-  String get _sectionTitle {
-    switch (_selectedIndex) {
-      case 0:
-        return _activeServer == null
-            ? strings.serversTitle
-            : strings.filesTitle;
-      case 1:
-        return strings.transfersTitle;
-      case 2:
-        return strings.offlineTitle;
-      case 3:
-        return strings.settingsTitle;
-      default:
-        return 'Xylos';
     }
   }
 
@@ -929,11 +911,16 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showPageTitle = MediaQuery.sizeOf(context).width >= 720;
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          SectionHeader(title: strings.settingsTitle),
+          SectionHeader(
+            title: strings.settingsTitle,
+            showTitle: showPageTitle,
+          ),
           const SizedBox(height: 16),
           Card(
             margin: EdgeInsets.zero,
@@ -1445,7 +1432,7 @@ class TransfersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final supportsQrImport = Platform.isAndroid || Platform.isIOS;
+    final showPageTitle = MediaQuery.sizeOf(context).width >= 720;
 
     return SafeArea(
       child: Padding(
@@ -1455,6 +1442,7 @@ class TransfersPage extends StatelessWidget {
           children: [
             SectionHeader(
               title: strings.transfersTitle,
+              showTitle: showPageTitle,
               action: TextButton(
                 onPressed: transfers.isEmpty ? null : onClearCompleted,
                 child: Text(strings.clearCompleted),
@@ -1584,6 +1572,7 @@ class _OfflinePageState extends State<OfflinePage> {
 
   @override
   Widget build(BuildContext context) {
+    final showPageTitle = MediaQuery.sizeOf(context).width >= 720;
     final title = _serverPath.isEmpty
         ? widget.strings.offlineTitle
         : '${_lastPathSegment(_serverPath)} · ${widget.strings.localFilesTitle}';
@@ -1593,7 +1582,10 @@ class _OfflinePageState extends State<OfflinePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SectionHeader(title: title),
+            SectionHeader(
+              title: title,
+              showTitle: _serverPath.isNotEmpty || showPageTitle,
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -2026,22 +2018,35 @@ class EmptyState extends StatelessWidget {
 }
 
 class SectionHeader extends StatelessWidget {
-  const SectionHeader({super.key, required this.title, this.action});
+  const SectionHeader({
+    super.key,
+    required this.title,
+    this.action,
+    this.showTitle = true,
+  });
 
   final String title;
   final Widget? action;
+  final bool showTitle;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.headlineSmall,
+        if (showTitle)
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          )
+        else
+          const Spacer(),
+        if (action != null)
+          Padding(
+            padding: EdgeInsets.only(left: showTitle ? 12 : 0),
+            child: action!,
           ),
-        ),
-        if (action != null) action!,
       ],
     );
   }
@@ -2195,6 +2200,7 @@ class AppStrings {
     required this.offlineTitle,
     required this.settingsTitle,
     required this.addServer,
+    required this.enterServerManually,
     required this.editServer,
     required this.deleteServer,
     required this.deleteServerConfirmTemplate,
@@ -2334,6 +2340,7 @@ class AppStrings {
   final String offlineTitle;
   final String settingsTitle;
   final String addServer;
+  final String enterServerManually;
   final String editServer;
   final String deleteServer;
   final String deleteServerConfirmTemplate;
@@ -2598,6 +2605,7 @@ class AppStrings {
     offlineTitle: '离线文件',
     settingsTitle: '设置',
     addServer: '添加服务器',
+    enterServerManually: '手动填写',
     editServer: '编辑服务器',
     deleteServer: '删除服务器',
     deleteServerConfirmTemplate: '确认删除“{alias}”？此操作不会删除服务端文件。',
@@ -2740,6 +2748,7 @@ class AppStrings {
     offlineTitle: 'Offline Files',
     settingsTitle: 'Settings',
     addServer: 'Add Server',
+    enterServerManually: 'Enter Manually',
     editServer: 'Edit Server',
     deleteServer: 'Delete Server',
     deleteServerConfirmTemplate:
@@ -3047,6 +3056,7 @@ class ServersPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final supportsQrImport = Platform.isAndroid || Platform.isIOS;
+    final showPageTitle = MediaQuery.sizeOf(context).width >= 720;
 
     return SafeArea(
       child: Padding(
@@ -3056,22 +3066,13 @@ class ServersPage extends StatelessWidget {
           children: [
             SectionHeader(
               title: strings.serversTitle,
-              action: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (supportsQrImport)
-                    OutlinedButton.icon(
-                      onPressed: () => _runImportServerQr(context),
-                      icon: const Icon(Icons.qr_code_scanner),
-                      label: Text(strings.scanServerQr),
-                    ),
-                  FilledButton.icon(
-                    onPressed: () => _openEditor(context),
-                    icon: const Icon(Icons.add),
-                    label: Text(strings.addServer),
-                  ),
-                ],
+              showTitle: showPageTitle,
+              action: _AddServerActions(
+                strings: strings,
+                supportsQrImport: supportsQrImport,
+                useMenu: !showPageTitle,
+                onManualEntry: () => _openEditor(context),
+                onScanQr: () => _runImportServerQr(context),
               ),
             ),
             const SizedBox(height: 16),
@@ -3081,10 +3082,12 @@ class ServersPage extends StatelessWidget {
                       icon: Icons.dns_outlined,
                       title: strings.noServersTitle,
                       message: strings.noServersMessage,
-                      action: FilledButton.icon(
-                        onPressed: () => _openEditor(context),
-                        icon: const Icon(Icons.add),
-                        label: Text(strings.addServer),
+                      action: _AddServerActions(
+                        strings: strings,
+                        supportsQrImport: supportsQrImport,
+                        useMenu: !showPageTitle,
+                        onManualEntry: () => _openEditor(context),
+                        onScanQr: () => _runImportServerQr(context),
                       ),
                     )
                   : ListView.separated(
@@ -3202,6 +3205,88 @@ class ServersPage extends StatelessWidget {
       }
       _showSnackBar(context, strings.configActionFailed(error.message));
     }
+  }
+}
+
+enum _AddServerAction {
+  manualEntry,
+  scanQr;
+}
+
+class _AddServerActions extends StatelessWidget {
+  const _AddServerActions({
+    required this.strings,
+    required this.supportsQrImport,
+    required this.useMenu,
+    required this.onManualEntry,
+    required this.onScanQr,
+  });
+
+  final AppStrings strings;
+  final bool supportsQrImport;
+  final bool useMenu;
+  final VoidCallback onManualEntry;
+  final VoidCallback onScanQr;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!useMenu) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (supportsQrImport)
+            OutlinedButton.icon(
+              onPressed: onScanQr,
+              icon: const Icon(Icons.qr_code_scanner),
+              label: Text(strings.scanServerQr),
+            ),
+          FilledButton.icon(
+            onPressed: onManualEntry,
+            icon: const Icon(Icons.add),
+            label: Text(strings.addServer),
+          ),
+        ],
+      );
+    }
+
+    return PopupMenuButton<_AddServerAction>(
+      tooltip: strings.addServer,
+      onSelected: (action) {
+        switch (action) {
+          case _AddServerAction.manualEntry:
+            onManualEntry();
+          case _AddServerAction.scanQr:
+            onScanQr();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _AddServerAction.manualEntry,
+          child: ListTile(
+            leading: const Icon(Icons.edit_note),
+            title: Text(strings.enterServerManually),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        if (supportsQrImport)
+          PopupMenuItem(
+            value: _AddServerAction.scanQr,
+            child: ListTile(
+              leading: const Icon(Icons.qr_code_scanner),
+              title: Text(strings.scanServerQr),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+      ],
+      child: IgnorePointer(
+        child: FilledButton.icon(
+          onPressed: () {},
+          icon: const Icon(Icons.add),
+          label: Text(strings.addServer),
+        ),
+      ),
+    );
   }
 }
 
