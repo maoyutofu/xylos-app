@@ -8,6 +8,7 @@ import 'package:xylos/models/transfer_record.dart';
 import 'package:xylos/services/account_store.dart';
 import 'package:xylos/services/server_qr_payload.dart';
 import 'package:xylos/services/webdav_client.dart';
+import 'package:xylos/ui/app_theme.dart';
 import 'package:xylos/ui/home_page.dart';
 
 void main() {
@@ -65,6 +66,66 @@ void main() {
           transfers: transfers,
         ),
       ),
+    );
+  }
+
+  ThemeData testTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: kAppPrimaryColor,
+      brightness: Brightness.light,
+    ).copyWith(
+      primary: kAppPrimaryColor,
+      secondary: kAppPrimaryColor,
+      tertiary: kAppPrimaryColor,
+    );
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      extensions: const [XylosTheme.light],
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: kAppPrimaryColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kAppButtonRadius),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: kAppPrimaryColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kAppButtonRadius),
+          ),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: kAppPrimaryColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kAppButtonRadius),
+          ),
+        ),
+      ),
+    );
+  }
+
+  WebDavAccount testServer({
+    required String id,
+    required String name,
+    String baseUrl = 'https://dav.example.com',
+  }) {
+    return WebDavAccount(
+      id: id,
+      name: name,
+      baseUrl: baseUrl,
+      authType: AuthType.basic,
+      digestAlgorithm: DigestAlgorithm.md5,
+      username: 'admin',
+      secret: '',
+      defaultPath: '/',
+      allowHttp: false,
+      trustSelfSignedCert: false,
     );
   }
 
@@ -175,8 +236,9 @@ void main() {
       (WidgetTester tester) async {
     await pumpApp(
       tester,
-      const MaterialApp(
-        home: Scaffold(
+      MaterialApp(
+        theme: testTheme(),
+        home: const Scaffold(
           body: ServerEditorDialog(
             server: null,
             strings: AppStrings.zh,
@@ -263,7 +325,47 @@ void main() {
     expect(decoded.authType, server.authType);
   });
 
-  testWidgets('hides QR import on desktop and keeps QR export in menu',
+  test('renames imported servers when aliases already exist', () {
+    final servers = mergeImportedServers(
+      [
+        testServer(id: 'server-1', name: 'NAS'),
+        testServer(id: 'server-2', name: 'NAS (2)'),
+      ],
+      [
+        testServer(id: 'server-3', name: 'NAS'),
+        testServer(id: 'server-4', name: 'nas'),
+      ],
+    );
+
+    expect(servers.map((server) => server.name), [
+      'NAS',
+      'NAS (2)',
+      'NAS (3)',
+      'nas (4)',
+    ]);
+  });
+
+  test('updates imported servers with matching ids', () {
+    final servers = mergeImportedServers(
+      [
+        testServer(id: 'server-1', name: 'NAS'),
+        testServer(id: 'server-2', name: 'Office'),
+      ],
+      [
+        testServer(
+          id: 'server-1',
+          name: 'Backup',
+          baseUrl: 'https://backup.example.com',
+        ),
+      ],
+    );
+
+    expect(servers, hasLength(2));
+    expect(servers.first.name, 'Backup');
+    expect(servers.first.baseUrl, 'https://backup.example.com');
+  });
+
+  testWidgets('hides QR import on desktop and keeps server actions visible',
       (WidgetTester tester) async {
     const server = WebDavAccount(
       id: 'server-qr-ui',
@@ -281,13 +383,9 @@ void main() {
     await pumpDefaultApp(tester, servers: const [server]);
 
     expect(find.text('扫码导入'), findsNothing);
-
-    await tester.tap(find.byIcon(Icons.more_vert).first);
-    await tester.pumpAndSettle();
-
-    expect(find.text('二维码导出'), findsOneWidget);
-    expect(find.text('编辑服务器'), findsOneWidget);
-    expect(find.text('删除服务器'), findsOneWidget);
+    expect(find.byIcon(Icons.qr_code_2), findsOneWidget);
+    expect(find.byIcon(Icons.edit), findsOneWidget);
+    expect(find.byIcon(Icons.delete_outline), findsOneWidget);
   });
 
   test('stores server secrets only in local encrypted vault after unlock',

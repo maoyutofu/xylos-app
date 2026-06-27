@@ -897,15 +897,16 @@ class _HomePageState extends State<HomePage> {
       throw const FormatException('Missing servers list.');
     }
 
-    final servers = rawServers
+    final importedServers = rawServers
         .map(
           (item) => WebDavAccount.fromJson(
             Map<String, Object?>.from(item as Map),
           ),
         )
         .toList();
+    final servers = mergeImportedServers(_servers, importedServers);
     await _replaceServers(servers);
-    return strings.importSucceeded(servers.length);
+    return strings.importSucceeded(importedServers.length);
   }
 
   Future<String?> _importServerFromQr() async {
@@ -936,14 +937,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _upsertImportedServer(WebDavAccount server) async {
-    final nextServers = [..._servers];
-    final index = nextServers.indexWhere((item) => item.id == server.id);
-    if (index == -1) {
-      nextServers.add(server);
-    } else {
-      nextServers[index] = server;
-    }
-    await _replaceServers(nextServers);
+    await _replaceServers(mergeImportedServers(_servers, [server]));
   }
 
   Future<String> _exportServerQr(WebDavAccount server) async {
@@ -3945,6 +3939,50 @@ class AppStrings {
 
 bool _containsHanCharacters(String value) {
   return RegExp(r'[\u4e00-\u9fff]').hasMatch(value);
+}
+
+String deduplicateImportedServerName(
+  String name,
+  Iterable<WebDavAccount> existingServers,
+) {
+  final baseName = name.trim().isEmpty ? 'Server' : name.trim();
+  final existingNames = existingServers
+      .map((server) => server.name.trim().toLowerCase())
+      .where((name) => name.isNotEmpty)
+      .toSet();
+  if (!existingNames.contains(baseName.toLowerCase())) {
+    return baseName;
+  }
+
+  var index = 2;
+  while (existingNames.contains('$baseName ($index)'.toLowerCase())) {
+    index += 1;
+  }
+  return '$baseName ($index)';
+}
+
+List<WebDavAccount> mergeImportedServers(
+  List<WebDavAccount> existingServers,
+  List<WebDavAccount> importedServers,
+) {
+  final nextServers = [...existingServers];
+  for (final server in importedServers) {
+    final index = nextServers.indexWhere((item) => item.id == server.id);
+    if (index == -1) {
+      nextServers.add(
+        server.copyWith(
+          name: deduplicateImportedServerName(server.name, nextServers),
+        ),
+      );
+      continue;
+    }
+
+    final otherServers = [...nextServers]..removeAt(index);
+    nextServers[index] = server.copyWith(
+      name: deduplicateImportedServerName(server.name, otherServers),
+    );
+  }
+  return nextServers;
 }
 
 String _formatSize(int? bytes, AppStrings strings) {
