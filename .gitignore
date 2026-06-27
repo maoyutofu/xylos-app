@@ -143,6 +143,28 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.*.example
+!.env.*.template
+*.pem
+*.p12
+*.pfx
+*.p8
+*.mobileprovision
+*.provisionprofile
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+AuthKey_*.p8
+**/GoogleService-Info.plist
+**/google-services.json
+**/*service-account*.json
+**/*firebase-adminsdk*.json
 key.properties
 *.keystore
 *.jks

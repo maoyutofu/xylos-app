@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -26,17 +28,19 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Xylos needs local network access to connect to WebDAV servers on your LAN.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Xylos needs camera access so you can scan QR codes to import server configurations.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Xylos needs access to your photo library so you can upload media files.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Xylos needs camera access so you can scan QR codes to import server configurations.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Xylos needs local network access to connect to WebDAV servers on your LAN.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Xylos needs access to your photo library so you can upload media files.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -56,9 +60,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
 </dict>
 </plist>

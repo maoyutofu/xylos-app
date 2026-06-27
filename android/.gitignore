@@ -11,3 +11,10 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+*.p12
+*.pfx
+*.pem
+*.p8
+google-services.json
+**/*service-account*.json
+**/*firebase-adminsdk*.json
