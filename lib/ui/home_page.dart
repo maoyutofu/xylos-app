@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:crypto/crypto.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,6 +26,7 @@ import '../services/webdav_client.dart';
 import 'app_theme.dart';
 
 const _mobileBreakpoint = 720.0;
+const _imagePreviewMaxDimension = 320;
 const MethodChannel _systemChannel = MethodChannel('space.xylos.app/system');
 
 PopupMenuItem<T> _menuItem<T>({
@@ -449,6 +454,7 @@ class _HomePageState extends State<HomePage> {
           onChangeMasterPassphrase: _changeMasterPassphrase,
           onExportServers: _exportServers,
           onImportServers: _importServers,
+          onClearCache: _clearImagePreviewCache,
         );
       default:
         return const SizedBox.shrink();
@@ -996,6 +1002,17 @@ class _HomePageState extends State<HomePage> {
     await _persistTransfers();
   }
 
+  Future<String> _clearImagePreviewCache() async {
+    final directory = await _imagePreviewCacheRootDirectory();
+    if (await directory.exists()) {
+      await directory.delete(recursive: true);
+    }
+    setState(() {
+      _fileBrowserSession++;
+    });
+    return strings.clearCacheSucceeded;
+  }
+
   Future<void> _cleanTransfer(TransferRecord transfer) async {
     setState(() {
       _transfers.removeWhere((item) => item.id == transfer.id);
@@ -1253,6 +1270,7 @@ class SettingsPage extends StatelessWidget {
     required this.onChangeMasterPassphrase,
     required this.onExportServers,
     required this.onImportServers,
+    required this.onClearCache,
   });
 
   final AppLanguage language;
@@ -1265,6 +1283,7 @@ class SettingsPage extends StatelessWidget {
   final Future<String?> Function() onChangeMasterPassphrase;
   final Future<String?> Function() onExportServers;
   final Future<String?> Function() onImportServers;
+  final Future<String> Function() onClearCache;
 
   static const double _downloadDirectoryControlHeight = 40;
 
@@ -1418,6 +1437,14 @@ class SettingsPage extends StatelessWidget {
                     onTap: () => _runChangeMasterPassphrase(context),
                   ),
                   const Divider(height: 1, endIndent: 16),
+                  ListTile(
+                    leading: const Icon(Icons.cleaning_services_outlined),
+                    title: Text(strings.clearCache),
+                    subtitle: Text(strings.clearCacheDescription),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _runClearCache(context),
+                  ),
+                  const Divider(height: 1, endIndent: 16),
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: _SettingsAboutSection(
@@ -1550,6 +1577,12 @@ class SettingsPage extends StatelessWidget {
                   title: strings.changeMasterPassphrase,
                   onTap: () => _runChangeMasterPassphrase(context),
                 ),
+                _themedDivider(context, indent: 48),
+                _MobileSettingsTile(
+                  icon: Icons.cleaning_services_outlined,
+                  title: strings.clearCache,
+                  onTap: () => _runClearCache(context),
+                ),
               ],
             ),
           ),
@@ -1638,6 +1671,13 @@ class SettingsPage extends StatelessWidget {
       return;
     }
     await _runConfigAction(context, onChangeMasterPassphrase);
+  }
+
+  Future<void> _runClearCache(BuildContext context) async {
+    if (!context.mounted) {
+      return;
+    }
+    await _runConfigAction(context, onClearCache);
   }
 }
 
@@ -3309,6 +3349,9 @@ class AppStrings {
     required this.masterPassphraseChanged,
     required this.masterPassphraseUnlocked,
     required this.masterPassphraseLocked,
+    required this.clearCache,
+    required this.clearCacheDescription,
+    required this.clearCacheSucceeded,
     required this.about,
     required this.termsOfService,
     required this.termsOfServicePath,
@@ -3455,6 +3498,9 @@ class AppStrings {
   final String masterPassphraseChanged;
   final String masterPassphraseUnlocked;
   final String masterPassphraseLocked;
+  final String clearCache;
+  final String clearCacheDescription;
+  final String clearCacheSucceeded;
   final String about;
   final String termsOfService;
   final String termsOfServicePath;
@@ -3727,6 +3773,9 @@ class AppStrings {
     masterPassphraseChanged: '主口令已更新',
     masterPassphraseUnlocked: '当前会话已解锁',
     masterPassphraseLocked: '当前会话未解锁',
+    clearCache: '清理缓存',
+    clearCacheDescription: '清理本地图片缩略图缓存，不会删除服务器文件或已下载文件。',
+    clearCacheSucceeded: '缓存已清理',
     about: '关于',
     termsOfService: '用户协议',
     termsOfServicePath: 'legal/TERMS_OF_SERVICE.zh-CN.md',
@@ -3886,6 +3935,10 @@ class AppStrings {
     masterPassphraseChanged: 'Master passphrase updated',
     masterPassphraseUnlocked: 'Current session is unlocked',
     masterPassphraseLocked: 'Current session is locked',
+    clearCache: 'Clear Cache',
+    clearCacheDescription:
+        'Clears local image thumbnail cache without deleting server files or downloaded files.',
+    clearCacheSucceeded: 'Cache cleared',
     about: 'About',
     termsOfService: 'Terms of Service',
     termsOfServicePath: 'legal/TERMS_OF_SERVICE.en.md',
@@ -5639,8 +5692,14 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
           return cached;
         }
         final future = () async {
+          final cachedThumbnail = await _readCachedImagePreview(cacheKey);
+          if (cachedThumbnail != null) {
+            return cachedThumbnail;
+          }
           final bytes = await client.downloadBytes(resource.path);
-          return Uint8List.fromList(bytes);
+          final previewBytes = await _buildImagePreviewBytes(bytes);
+          await _writeCachedImagePreview(cacheKey, previewBytes);
+          return previewBytes;
         }();
         _imagePreviewCache[cacheKey] = future;
         return future;
@@ -5650,14 +5709,83 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
 
   String _imagePreviewCacheKey(WebDavResource resource) {
     final validator = resource.etag ?? resource.lastModified?.toIso8601String();
-    return '${resource.path}|${resource.size ?? -1}|${validator ?? ''}';
+    return '${widget.server.id}|${resource.path}|${resource.size ?? -1}|${validator ?? ''}';
   }
 
   void _clearImagePreviewCacheForPath(String path) {
     final prefix = path.endsWith('/') ? path : '$path/';
     _imagePreviewCache.removeWhere(
-      (key, _) => key.startsWith(prefix) || key.startsWith('$path|'),
+      (key, _) =>
+          key.startsWith('${widget.server.id}|$prefix') ||
+          key.startsWith('${widget.server.id}|$path|'),
     );
+    _clearCachedImagePreviewsForPath(path);
+  }
+
+  Future<Uint8List?> _readCachedImagePreview(String cacheKey) async {
+    try {
+      final file = await _cachedImagePreviewFile(cacheKey);
+      if (!await file.exists()) {
+        return null;
+      }
+      return file.readAsBytes();
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'UI',
+        'read cached image preview failed server=${widget.server.name}',
+        error,
+        stackTrace,
+      );
+      return null;
+    }
+  }
+
+  Future<void> _writeCachedImagePreview(
+    String cacheKey,
+    Uint8List bytes,
+  ) async {
+    try {
+      final file = await _cachedImagePreviewFile(cacheKey);
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(bytes, flush: false);
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'UI',
+        'write cached image preview failed server=${widget.server.name}',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
+  Future<File> _cachedImagePreviewFile(String cacheKey) async {
+    final directory = await _imagePreviewCacheDirectory();
+    final filename = '${sha256.convert(utf8.encode(cacheKey))}.png';
+    return File('${directory.path}${Platform.pathSeparator}$filename');
+  }
+
+  Future<Directory> _imagePreviewCacheDirectory() async {
+    final rootDirectory = await _imagePreviewCacheRootDirectory();
+    final serverKey = sha256.convert(utf8.encode(widget.server.id)).toString();
+    return Directory(
+      '${rootDirectory.path}${Platform.pathSeparator}$serverKey',
+    );
+  }
+
+  Future<void> _clearCachedImagePreviewsForPath(String path) async {
+    try {
+      final directory = await _imagePreviewCacheDirectory();
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'UI',
+        'clear cached image previews failed path=$path server=${widget.server.name}',
+        error,
+        stackTrace,
+      );
+    }
   }
 
   Future<void> _uploadFile() async {
@@ -6901,6 +7029,50 @@ bool _isImageResource(WebDavResource resource) {
     'png',
     'webp',
   }.contains(extension);
+}
+
+Future<Uint8List> _buildImagePreviewBytes(List<int> sourceBytes) async {
+  final bytes =
+      sourceBytes is Uint8List ? sourceBytes : Uint8List.fromList(sourceBytes);
+  final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+  ui.ImageDescriptor? descriptor;
+  ui.Codec? codec;
+  ui.FrameInfo? frame;
+  try {
+    descriptor = await ui.ImageDescriptor.encoded(buffer);
+    final width = descriptor.width;
+    final height = descriptor.height;
+    final largestSide = math.max(width, height);
+    final scale = largestSide > _imagePreviewMaxDimension
+        ? _imagePreviewMaxDimension / largestSide
+        : 1.0;
+    final targetWidth = math.max(1, (width * scale).round());
+    final targetHeight = math.max(1, (height * scale).round());
+    codec = await descriptor.instantiateCodec(
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+    );
+    frame = await codec.getNextFrame();
+    final thumbnailBytes = await frame.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    if (thumbnailBytes == null) {
+      return bytes;
+    }
+    return thumbnailBytes.buffer.asUint8List();
+  } finally {
+    frame?.image.dispose();
+    codec?.dispose();
+    descriptor?.dispose();
+    buffer.dispose();
+  }
+}
+
+Future<Directory> _imagePreviewCacheRootDirectory() async {
+  final temporaryDirectory = await getTemporaryDirectory();
+  return Directory(
+    '${temporaryDirectory.path}${Platform.pathSeparator}xylos-image-previews',
+  );
 }
 
 bool _isLocalImagePath(String path) {
