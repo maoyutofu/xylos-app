@@ -21,6 +21,8 @@ class AccountStore {
   static const _transfersKey = 'xylos.transfers.v1';
   static const _secretVaultKey = 'xylos.secretVault.v1';
   static const _secretVaultHeader = 'xylos.secret-vault|1';
+  static const _acceptedLegalTermsVersionKey = 'xylos.legal.acceptedVersion.v1';
+  static const _currentLegalTermsVersion = '2026-06-29';
 
   static String? _sessionPassphrase;
   static final Map<String, String> _sessionSecrets = <String, String>{};
@@ -235,6 +237,20 @@ class AccountStore {
   Future<void> saveLanguageCode(String languageCode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_languageKey, languageCode);
+  }
+
+  Future<bool> hasAcceptedCurrentLegalTerms() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_acceptedLegalTermsVersionKey) ==
+        _currentLegalTermsVersion;
+  }
+
+  Future<void> acceptCurrentLegalTerms() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _acceptedLegalTermsVersionKey,
+      _currentLegalTermsVersion,
+    );
   }
 
   Future<String> loadDownloadDirectory() async {

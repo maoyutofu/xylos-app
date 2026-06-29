@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 const kAppButtonRadius = 3.0;
+const kAppBrandColor = Color(0xFF4655C7);
+const kAppBrandSoftColor = Color(0xFFEEF1FF);
 const kAppPrimaryColor = Color(0xFF58C99F);
+const kAppSuccessColor = kAppPrimaryColor;
 const kAppBackgroundColor = Color(0xFFFFFFFF);
 const kAppSurfaceColor = Color(0xFFFFFFFF);
 const kAppPrimarySoftColor = Color(0xFFC9F3E3);
@@ -30,6 +33,8 @@ const kAppFontFamilyFallback = <String>[
 @immutable
 class XylosTheme extends ThemeExtension<XylosTheme> {
   const XylosTheme({
+    required this.brand,
+    required this.brandSoft,
     required this.background,
     required this.surface,
     required this.primarySoft,
@@ -42,10 +47,13 @@ class XylosTheme extends ThemeExtension<XylosTheme> {
     required this.hoverSurface,
     required this.highlightSurface,
     required this.sheetHandle,
+    required this.success,
     required this.destructive,
     required this.shadow,
   });
 
+  final Color brand;
+  final Color brandSoft;
   final Color background;
   final Color surface;
   final Color primarySoft;
@@ -58,10 +66,13 @@ class XylosTheme extends ThemeExtension<XylosTheme> {
   final Color hoverSurface;
   final Color highlightSurface;
   final Color sheetHandle;
+  final Color success;
   final Color destructive;
   final Color shadow;
 
   static const light = XylosTheme(
+    brand: kAppBrandColor,
+    brandSoft: kAppBrandSoftColor,
     background: kAppBackgroundColor,
     surface: kAppSurfaceColor,
     primarySoft: kAppPrimarySoftColor,
@@ -74,12 +85,15 @@ class XylosTheme extends ThemeExtension<XylosTheme> {
     hoverSurface: kAppHoverSurfaceColor,
     highlightSurface: kAppHighlightSurfaceColor,
     sheetHandle: kAppSheetHandleColor,
+    success: kAppSuccessColor,
     destructive: kAppDestructiveColor,
     shadow: Colors.black,
   );
 
   @override
   XylosTheme copyWith({
+    Color? brand,
+    Color? brandSoft,
     Color? background,
     Color? surface,
     Color? primarySoft,
@@ -92,10 +106,13 @@ class XylosTheme extends ThemeExtension<XylosTheme> {
     Color? hoverSurface,
     Color? highlightSurface,
     Color? sheetHandle,
+    Color? success,
     Color? destructive,
     Color? shadow,
   }) {
     return XylosTheme(
+      brand: brand ?? this.brand,
+      brandSoft: brandSoft ?? this.brandSoft,
       background: background ?? this.background,
       surface: surface ?? this.surface,
       primarySoft: primarySoft ?? this.primarySoft,
@@ -108,6 +125,7 @@ class XylosTheme extends ThemeExtension<XylosTheme> {
       hoverSurface: hoverSurface ?? this.hoverSurface,
       highlightSurface: highlightSurface ?? this.highlightSurface,
       sheetHandle: sheetHandle ?? this.sheetHandle,
+      success: success ?? this.success,
       destructive: destructive ?? this.destructive,
       shadow: shadow ?? this.shadow,
     );
@@ -119,6 +137,8 @@ class XylosTheme extends ThemeExtension<XylosTheme> {
       return this;
     }
     return XylosTheme(
+      brand: Color.lerp(brand, other.brand, t)!,
+      brandSoft: Color.lerp(brandSoft, other.brandSoft, t)!,
       background: Color.lerp(background, other.background, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
       primarySoft: Color.lerp(primarySoft, other.primarySoft, t)!,
@@ -133,6 +153,7 @@ class XylosTheme extends ThemeExtension<XylosTheme> {
       highlightSurface:
           Color.lerp(highlightSurface, other.highlightSurface, t)!,
       sheetHandle: Color.lerp(sheetHandle, other.sheetHandle, t)!,
+      success: Color.lerp(success, other.success, t)!,
       destructive: Color.lerp(destructive, other.destructive, t)!,
       shadow: Color.lerp(shadow, other.shadow, t)!,
     );

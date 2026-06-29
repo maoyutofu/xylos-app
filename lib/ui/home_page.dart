@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -351,11 +350,9 @@ class _HomePageState extends State<HomePage> {
 
           return Scaffold(
             backgroundColor: kAppBackgroundColor,
-            body: Column(
-              children: [
-                const _MobileTopBar(),
-                Expanded(child: _buildSection()),
-              ],
+            body: SafeArea(
+              bottom: false,
+              child: _buildSection(),
             ),
             bottomNavigationBar: _MobileNavigationBar(
               selectedIndex: _selectedIndex,
@@ -1199,62 +1196,6 @@ class _MobileNavigationItem extends StatelessWidget {
   }
 }
 
-class _MobileTopBar extends StatelessWidget {
-  const _MobileTopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Theme.of(context).xylos.surface,
-      child: SafeArea(
-        bottom: false,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Theme.of(context).xylos.border),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            child: SizedBox(
-              height: 32,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: ClipRRect(
-                      borderRadius: Theme.of(context).smallRadius,
-                      child: Image.asset(
-                        'assets/icon.png',
-                        width: 24,
-                        height: 24,
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Text(
-                      'Xylos',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).xylos.text,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MobileTopBarIconButton extends StatelessWidget {
   const _MobileTopBarIconButton({
     required this.tooltip,
@@ -1755,14 +1696,18 @@ class _SettingsAboutSection extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: theme.subduedSurfaceColor,
+            color: theme.xylos.brandSoft,
             borderRadius: theme.smallRadius,
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.widgets_outlined,
-                color: theme.mutedIconColor,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: Image.asset(
+                  'assets/icon.png',
+                  width: 34,
+                  height: 34,
+                ),
               ),
               const SizedBox(width: 10),
               Column(
@@ -1771,7 +1716,7 @@ class _SettingsAboutSection extends StatelessWidget {
                   Text(
                     'Xylos',
                     style: TextStyle(
-                      color: theme.xylos.text,
+                      color: theme.xylos.brand,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2754,12 +2699,6 @@ class _OfflinePageState extends State<OfflinePage> {
 
 enum _OfflineEntryAction {
   openFolder,
-  delete;
-}
-
-enum _ServerTileAction {
-  exportQr,
-  edit,
   delete;
 }
 
@@ -4660,7 +4599,7 @@ class _DesktopServerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColor = switch (connectionState) {
-      _ConnectionTestState.succeeded => theme.colorScheme.primary,
+      _ConnectionTestState.succeeded => theme.xylos.success,
       _ConnectionTestState.failed => theme.xylos.muted,
       _ConnectionTestState.testing => theme.xylos.muted,
       _ConnectionTestState.unknown => theme.colorScheme.primary,
@@ -4826,7 +4765,7 @@ class _MobileServerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusColor = switch (connectionState) {
-      _ConnectionTestState.succeeded => theme.colorScheme.primary,
+      _ConnectionTestState.succeeded => theme.xylos.success,
       _ConnectionTestState.failed => theme.xylos.muted,
       _ConnectionTestState.testing => theme.xylos.muted,
       _ConnectionTestState.unknown => theme.colorScheme.primary,
