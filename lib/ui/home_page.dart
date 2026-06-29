@@ -1225,6 +1225,18 @@ class SettingsPage extends StatelessWidget {
   static final Uri _discussionsUri = Uri.parse(
     'https://github.com/maoyutofu/xylos-app/discussions',
   );
+  static final Uri _termsZhUri = Uri.parse(
+    'https://github.com/maoyutofu/xylos-app/blob/main/legal/TERMS_OF_SERVICE.zh-CN.md',
+  );
+  static final Uri _termsEnUri = Uri.parse(
+    'https://github.com/maoyutofu/xylos-app/blob/main/legal/TERMS_OF_SERVICE.en.md',
+  );
+  static final Uri _privacyZhUri = Uri.parse(
+    'https://github.com/maoyutofu/xylos-app/blob/main/legal/PRIVACY_POLICY.zh-CN.md',
+  );
+  static final Uri _privacyEnUri = Uri.parse(
+    'https://github.com/maoyutofu/xylos-app/blob/main/legal/PRIVACY_POLICY.en.md',
+  );
 
   const SettingsPage({
     super.key,
@@ -1254,6 +1266,14 @@ class SettingsPage extends StatelessWidget {
   static const double _downloadDirectoryControlHeight = 40;
 
   bool get _supportsDirectoryPicker => !Platform.isAndroid && !Platform.isIOS;
+
+  Uri get _termsUri {
+    return language == AppLanguage.zh ? _termsZhUri : _termsEnUri;
+  }
+
+  Uri get _privacyUri {
+    return language == AppLanguage.zh ? _privacyZhUri : _privacyEnUri;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1404,6 +1424,9 @@ class SettingsPage extends StatelessWidget {
                           _openExternalLink(context, _githubUri),
                       onOpenDiscussions: () =>
                           _openExternalLink(context, _discussionsUri),
+                      onOpenTerms: () => _openExternalLink(context, _termsUri),
+                      onOpenPrivacy: () =>
+                          _openExternalLink(context, _privacyUri),
                     ),
                   ),
                 ],
@@ -1539,6 +1562,8 @@ class SettingsPage extends StatelessWidget {
                   onOpenGithub: () => _openExternalLink(context, _githubUri),
                   onOpenDiscussions: () =>
                       _openExternalLink(context, _discussionsUri),
+                  onOpenTerms: () => _openExternalLink(context, _termsUri),
+                  onOpenPrivacy: () => _openExternalLink(context, _privacyUri),
                 ),
               ],
             ),
@@ -1662,6 +1687,8 @@ class _SettingsAboutSection extends StatelessWidget {
     required this.appVersion,
     required this.onOpenGithub,
     required this.onOpenDiscussions,
+    required this.onOpenTerms,
+    required this.onOpenPrivacy,
     this.compact = false,
   });
 
@@ -1669,6 +1696,8 @@ class _SettingsAboutSection extends StatelessWidget {
   final String appVersion;
   final VoidCallback onOpenGithub;
   final VoidCallback onOpenDiscussions;
+  final VoidCallback onOpenTerms;
+  final VoidCallback onOpenPrivacy;
   final bool compact;
 
   @override
@@ -1691,7 +1720,7 @@ class _SettingsAboutSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(strings.appInfo, style: titleStyle),
+        Text(strings.about, style: titleStyle),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1729,6 +1758,20 @@ class _SettingsAboutSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        _SettingsLinkRow(
+          icon: Icons.article_outlined,
+          title: strings.termsOfService,
+          subtitle: strings.termsOfServicePath,
+          onTap: onOpenTerms,
+        ),
+        const SizedBox(height: 8),
+        _SettingsLinkRow(
+          icon: Icons.privacy_tip_outlined,
+          title: strings.privacyPolicy,
+          subtitle: strings.privacyPolicyPath,
+          onTap: onOpenPrivacy,
+        ),
+        const SizedBox(height: 8),
         _SettingsLinkRow(
           icon: Icons.code,
           title: strings.github,
@@ -3261,7 +3304,11 @@ class AppStrings {
     required this.masterPassphraseChanged,
     required this.masterPassphraseUnlocked,
     required this.masterPassphraseLocked,
-    required this.appInfo,
+    required this.about,
+    required this.termsOfService,
+    required this.termsOfServicePath,
+    required this.privacyPolicy,
+    required this.privacyPolicyPath,
     required this.github,
     required this.discussions,
     required this.serverUrl,
@@ -3403,7 +3450,11 @@ class AppStrings {
   final String masterPassphraseChanged;
   final String masterPassphraseUnlocked;
   final String masterPassphraseLocked;
-  final String appInfo;
+  final String about;
+  final String termsOfService;
+  final String termsOfServicePath;
+  final String privacyPolicy;
+  final String privacyPolicyPath;
   final String github;
   final String discussions;
   final String serverUrl;
@@ -3671,7 +3722,11 @@ class AppStrings {
     masterPassphraseChanged: '主口令已更新',
     masterPassphraseUnlocked: '当前会话已解锁',
     masterPassphraseLocked: '当前会话未解锁',
-    appInfo: '应用信息',
+    about: '关于',
+    termsOfService: '用户协议',
+    termsOfServicePath: 'legal/TERMS_OF_SERVICE.zh-CN.md',
+    privacyPolicy: '隐私政策',
+    privacyPolicyPath: 'legal/PRIVACY_POLICY.zh-CN.md',
     github: 'GitHub',
     discussions: '讨论',
     serverUrl: '服务地址',
@@ -3826,7 +3881,11 @@ class AppStrings {
     masterPassphraseChanged: 'Master passphrase updated',
     masterPassphraseUnlocked: 'Current session is unlocked',
     masterPassphraseLocked: 'Current session is locked',
-    appInfo: 'App Info',
+    about: 'About',
+    termsOfService: 'Terms of Service',
+    termsOfServicePath: 'legal/TERMS_OF_SERVICE.en.md',
+    privacyPolicy: 'Privacy Policy',
+    privacyPolicyPath: 'legal/PRIVACY_POLICY.en.md',
     github: 'GitHub',
     discussions: 'Discussions',
     serverUrl: 'Server URL',
