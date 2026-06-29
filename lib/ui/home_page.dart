@@ -1677,6 +1677,26 @@ class SettingsPage extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(strings.clearCache),
+          content: Text(strings.clearCacheConfirm),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: _dialogActions(
+            context,
+            cancelLabel: strings.cancel,
+            confirmLabel: strings.clearCacheConfirmAction,
+            onCancel: () => Navigator.of(context).pop(false),
+            onConfirm: () => Navigator.of(context).pop(true),
+          ),
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
     await _runConfigAction(context, onClearCache);
   }
 }
@@ -3351,6 +3371,8 @@ class AppStrings {
     required this.masterPassphraseLocked,
     required this.clearCache,
     required this.clearCacheDescription,
+    required this.clearCacheConfirm,
+    required this.clearCacheConfirmAction,
     required this.clearCacheSucceeded,
     required this.about,
     required this.termsOfService,
@@ -3500,6 +3522,8 @@ class AppStrings {
   final String masterPassphraseLocked;
   final String clearCache;
   final String clearCacheDescription;
+  final String clearCacheConfirm;
+  final String clearCacheConfirmAction;
   final String clearCacheSucceeded;
   final String about;
   final String termsOfService;
@@ -3775,6 +3799,8 @@ class AppStrings {
     masterPassphraseLocked: '当前会话未解锁',
     clearCache: '清理缓存',
     clearCacheDescription: '清理本地图片缩略图缓存，不会删除服务器文件或已下载文件。',
+    clearCacheConfirm: '确认清理本地图片缩略图缓存？此操作不会删除服务器文件或已下载文件。',
+    clearCacheConfirmAction: '确认清理',
     clearCacheSucceeded: '缓存已清理',
     about: '关于',
     termsOfService: '用户协议',
@@ -3938,6 +3964,9 @@ class AppStrings {
     clearCache: 'Clear Cache',
     clearCacheDescription:
         'Clears local image thumbnail cache without deleting server files or downloaded files.',
+    clearCacheConfirm:
+        'Clear the local image thumbnail cache? This will not delete server files or downloaded files.',
+    clearCacheConfirmAction: 'Clear Cache',
     clearCacheSucceeded: 'Cache cleared',
     about: 'About',
     termsOfService: 'Terms of Service',
