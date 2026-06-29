@@ -179,6 +179,7 @@ class _HomePageState extends State<HomePage> {
   AppLanguage _language = AppLanguage.zh;
   var _downloadDirectory = '';
   var _selectedIndex = 0;
+  var _fileBrowserSession = 0;
   var _loading = true;
   String? _loadError;
 
@@ -399,6 +400,7 @@ class _HomePageState extends State<HomePage> {
         final activeServer = _activeServer;
         if (activeServer != null) {
           return FileBrowserPage(
+            key: ValueKey('${activeServer.id}:$_fileBrowserSession'),
             server: activeServer,
             strings: strings,
             downloadDirectory: _downloadDirectory,
@@ -494,6 +496,7 @@ class _HomePageState extends State<HomePage> {
       );
       _activeServer = hydratedServer;
       _selectedIndex = 0;
+      _fileBrowserSession += 1;
     });
   }
 
@@ -2031,25 +2034,27 @@ class _ServerEditorDialogState extends State<ServerEditorDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _secretController,
-                  decoration: Theme.of(context).desktopFieldDecoration(
-                    labelText: _authType == AuthType.bearer
-                        ? 'Token'
-                        : strings.password,
-                  ).copyWith(
-                    suffixIcon: IconButton(
-                      tooltip: strings.togglePassphraseVisibility,
-                      onPressed: () {
-                        setState(() {
-                          _showSecret = !_showSecret;
-                        });
-                      },
-                      icon: Icon(
-                        _showSecret
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                  decoration: Theme.of(context)
+                      .desktopFieldDecoration(
+                        labelText: _authType == AuthType.bearer
+                            ? 'Token'
+                            : strings.password,
+                      )
+                      .copyWith(
+                        suffixIcon: IconButton(
+                          tooltip: strings.togglePassphraseVisibility,
+                          onPressed: () {
+                            setState(() {
+                              _showSecret = !_showSecret;
+                            });
+                          },
+                          icon: Icon(
+                            _showSecret
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
                   obscureText: !_showSecret,
                   validator: _required,
                 ),
@@ -4740,9 +4745,7 @@ class _DesktopServerCard extends StatelessWidget {
                         Row(
                           children: [
                             Icon(
-                              testing
-                                  ? Icons.circle_outlined
-                                  : Icons.circle,
+                              testing ? Icons.circle_outlined : Icons.circle,
                               size: 11,
                               color: statusColor,
                             ),
@@ -5006,6 +5009,7 @@ class FileBrowserPage extends StatefulWidget {
 
 class _FileBrowserPageState extends State<FileBrowserPage> {
   final ImagePicker _imagePicker = ImagePicker();
+  final _imagePreviewCache = <String, Future<Uint8List>>{};
   var _path = '/';
   var _resources = <WebDavResource>[];
   var _loading = false;
@@ -5031,6 +5035,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     if (oldWidget.server.id != widget.server.id) {
       _path = '/';
       _resources = [];
+      _imagePreviewCache.clear();
       _mobileSearchQuery = '';
       _error = null;
       _loadPath();
@@ -5133,7 +5138,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                   IconButton(
                     tooltip: strings.refresh,
                     style: Theme.of(context).desktopToolButtonStyle,
-                    onPressed: _loading ? null : _loadPath,
+                    onPressed: _loading ? null : _refreshPath,
                     icon: const Icon(Icons.refresh),
                   ),
                   const SizedBox(width: 8),
@@ -5194,7 +5199,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                 _MobileTopBarIconButton(
                   tooltip: widget.strings.refresh,
                   icon: Icons.refresh,
-                  onPressed: _loading ? null : _loadPath,
+                  onPressed: _loading ? null : _refreshPath,
                 ),
                 _MobileTopBarIconButton(
                   tooltip: widget.strings.uploadFile,
@@ -5511,9 +5516,10 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   }
 
   Future<void> _loadPath() async {
+    final requestedPath = _path;
     AppLogger.debug(
       'UI',
-      'load path=$_path alias=${widget.server.name} baseUrl=${widget.server.baseUrl}',
+      'load path=$requestedPath alias=${widget.server.name} baseUrl=${widget.server.baseUrl}',
     );
     setState(() {
       _loading = true;
@@ -5521,30 +5527,42 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     });
 
     try {
-      final resources = await WebDavClient(widget.server).list(_path);
+      final resources = await WebDavClient(widget.server).list(requestedPath);
       if (!mounted) {
         return;
       }
-      AppLogger.debug('UI', 'loaded path=$_path resources=${resources.length}');
+      AppLogger.debug(
+        'UI',
+        'loaded path=$requestedPath resources=${resources.length}',
+      );
       setState(() {
-        _resources = _sortedResources(resources);
+        if (_path == requestedPath) {
+          _resources = _sortedResources(resources);
+        }
       });
     } on WebDavException catch (error) {
-      AppLogger.error('UI', 'load path failed path=$_path', error);
+      AppLogger.error('UI', 'load path failed path=$requestedPath', error);
       if (!mounted) {
         return;
       }
       setState(() {
-        _resources = [];
-        _error = widget.strings.webDavError(error);
+        if (_path == requestedPath) {
+          _resources = [];
+          _error = widget.strings.webDavError(error);
+        }
       });
     } finally {
-      if (mounted) {
+      if (mounted && _path == requestedPath) {
         setState(() {
           _loading = false;
         });
       }
     }
+  }
+
+  Future<void> _refreshPath() async {
+    _clearImagePreviewCacheForPath(_path);
+    await _loadPath();
   }
 
   void _changeSort(FileSortField field) {
@@ -5614,10 +5632,31 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     }
     final client = WebDavClient(widget.server);
     return RemoteImageSource(
-      loader: () async {
-        final bytes = await client.downloadBytes(resource.path);
-        return Uint8List.fromList(bytes);
+      loader: () {
+        final cacheKey = _imagePreviewCacheKey(resource);
+        final cached = _imagePreviewCache[cacheKey];
+        if (cached != null) {
+          return cached;
+        }
+        final future = () async {
+          final bytes = await client.downloadBytes(resource.path);
+          return Uint8List.fromList(bytes);
+        }();
+        _imagePreviewCache[cacheKey] = future;
+        return future;
       },
+    );
+  }
+
+  String _imagePreviewCacheKey(WebDavResource resource) {
+    final validator = resource.etag ?? resource.lastModified?.toIso8601String();
+    return '${resource.path}|${resource.size ?? -1}|${validator ?? ''}';
+  }
+
+  void _clearImagePreviewCacheForPath(String path) {
+    final prefix = path.endsWith('/') ? path : '$path/';
+    _imagePreviewCache.removeWhere(
+      (key, _) => key.startsWith(prefix) || key.startsWith('$path|'),
     );
   }
 
@@ -6247,7 +6286,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       if (showSuccessSnackBar) {
         _showSnackBar(context, successMessage);
       }
-      await _loadPath();
+      await _refreshPath();
       return const _MutationResult.success();
     } on WebDavException catch (error) {
       AppLogger.error('UI', 'file operation failed path=$_path', error);
@@ -6811,9 +6850,7 @@ class ResourceIconPlaceholder extends StatelessWidget {
     final backgroundColor =
         resource.isDirectory ? theme.colorScheme.primary : theme.xylos.surface;
     final foregroundColor =
-        resource.isDirectory
-            ? theme.primaryForegroundColor
-            : theme.xylos.muted;
+        resource.isDirectory ? theme.primaryForegroundColor : theme.xylos.muted;
 
     return DecoratedBox(
       decoration: BoxDecoration(
