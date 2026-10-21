@@ -20,13 +20,14 @@ import '../models/webdav_account.dart';
 import '../models/webdav_resource.dart';
 import '../services/account_store.dart';
 import '../services/app_logger.dart';
-import '../services/local_crypto.dart';
+import '../services/server_config_crypto.dart';
 import '../services/server_qr_payload.dart';
 import '../services/webdav_client.dart';
 import 'app_theme.dart';
 
 const _mobileBreakpoint = 720.0;
 const _imagePreviewMaxDimension = 320;
+const _maxServerConfigFileBytes = 16 * 1024 * 1024;
 const MethodChannel _systemChannel = MethodChannel('space.xylos.app/system');
 
 PopupMenuItem<T> _menuItem<T>({
@@ -642,6 +643,110 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<String?> _promptConfigPassphrase({
+    required String title,
+    required String hint,
+    bool confirmation = false,
+  }) async {
+    if (!mounted) {
+      return null;
+    }
+    return showDialog<String?>(
+      context: context,
+      builder: (dialogContext) {
+        final passphraseController = TextEditingController();
+        final confirmController = TextEditingController();
+        var obscure = true;
+        var errorText = '';
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(title),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(hint),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passphraseController,
+                      obscureText: obscure,
+                      autofocus: true,
+                      decoration: Theme.of(context)
+                          .desktopFieldDecoration(
+                            labelText: strings.configPassphrase,
+                          )
+                          .copyWith(
+                            errorText: errorText.isEmpty ? null : errorText,
+                          ),
+                    ),
+                    if (confirmation) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: confirmController,
+                        obscureText: obscure,
+                        decoration: Theme.of(context).desktopFieldDecoration(
+                          labelText: strings.confirmPassphrase,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: Theme.of(context).primaryTextButtonStyle,
+                        onPressed: () {
+                          setState(() {
+                            obscure = !obscure;
+                          });
+                        },
+                        icon: Icon(
+                          obscure ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        label: Text(strings.togglePassphraseVisibility),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  style: Theme.of(context).primaryTextButtonStyle,
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(strings.cancel),
+                ),
+                FilledButton(
+                  style: Theme.of(context).primaryFilledButtonStyle,
+                  onPressed: () {
+                    final passphrase = passphraseController.text;
+                    if (passphrase.isEmpty) {
+                      setState(() {
+                        errorText = strings.passphraseRequired;
+                      });
+                      return;
+                    }
+                    if (confirmation && passphrase != confirmController.text) {
+                      setState(() {
+                        errorText = strings.passphraseMismatch;
+                      });
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(passphrase);
+                  },
+                  child: Text(strings.save),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<String?> _promptNewMasterPassphrase() async {
     if (!mounted) {
       return null;
@@ -794,9 +899,13 @@ class _HomePageState extends State<HomePage> {
 
   Future<String?> _exportServers() async {
     final hydratedServers = await _unlockAndHydrateServersForSession();
-    final passphrase = widget.store.sessionPassphrase;
-    if (passphrase == null || passphrase.isEmpty) {
-      throw const FormatException('Passphrase is required.');
+    final configPassphrase = await _promptConfigPassphrase(
+      title: strings.exportConfigPassphraseTitle,
+      hint: strings.exportConfigPassphraseHint,
+      confirmation: true,
+    );
+    if (configPassphrase == null || configPassphrase.isEmpty) {
+      return null;
     }
     final plaintext = utf8.encode(
       jsonEncode({
@@ -809,24 +918,10 @@ class _HomePageState extends State<HomePage> {
         ],
       }),
     );
-    final encrypted = encryptPayload(
+    final payload = await encryptServerConfigV3(
       plaintext,
-      passphrase,
-      header: 'xylos.server-config|2',
+      configPassphrase,
     );
-    final payload = <String, Object?>{
-      'format': 'xylos.server-config',
-      'version': 2,
-      'encrypted': true,
-      'kdf': encrypted['kdf'],
-      'cipher': encrypted['cipher'],
-      'exportedAt': DateTime.now().toUtc().toIso8601String(),
-      'salt': encrypted['salt'],
-      'nonce': encrypted['nonce'],
-      'iterations': encrypted['iterations'],
-      'ciphertext': encrypted['ciphertext'],
-      'mac': encrypted['mac'],
-    };
     final content = const JsonEncoder.withIndent('  ').convert(payload);
     final exportBytes = Uint8List.fromList(utf8.encode(content));
     final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
@@ -854,10 +949,6 @@ class _HomePageState extends State<HomePage> {
       }
       await widget.store.unlockSession(passphrase);
     }
-    final passphrase = widget.store.sessionPassphrase;
-    if (passphrase == null || passphrase.isEmpty) {
-      throw const FormatException('Passphrase is required.');
-    }
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: strings.importServers,
       type: FileType.custom,
@@ -870,27 +961,30 @@ class _HomePageState extends State<HomePage> {
     }
     final path = pickedFile.path?.trim() ?? '';
     final bytes = pickedFile.bytes;
-    final content =
-        bytes != null ? utf8.decode(bytes) : await File(path).readAsString();
+    final importedBytes = bytes ?? await File(path).readAsBytes();
+    if (importedBytes.length > _maxServerConfigFileBytes) {
+      throw const FormatException('Config file is too large.');
+    }
+    final content = utf8.decode(importedBytes);
     final decoded = jsonDecode(content);
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('Invalid config format.');
     }
 
-    final format = decoded['format'] as String? ?? '';
-    final version = decoded['version'];
-    if (format != 'xylos.server-config') {
+    final version = serverConfigEnvelopeVersion(decoded);
+    if (version != serverConfigV2Version && version != serverConfigV3Version) {
       throw const FormatException('Unsupported config version.');
     }
-
-    if (version != 2) {
-      throw const FormatException('Unsupported config version.');
-    }
-    final decrypted = decryptPayload(
-      decoded,
-      passphrase,
-      header: 'xylos.server-config|2',
+    final configPassphrase = await _promptConfigPassphrase(
+      title: strings.importConfigPassphraseTitle,
+      hint: version == serverConfigV2Version
+          ? strings.importLegacyConfigPassphraseHint
+          : strings.importConfigPassphraseHint,
     );
+    if (configPassphrase == null || configPassphrase.isEmpty) {
+      return null;
+    }
+    final decrypted = await decryptServerConfig(decoded, configPassphrase);
     if (decrypted is! Map<String, Object?>) {
       throw const FormatException('Invalid decrypted config.');
     }
@@ -1404,11 +1498,7 @@ class SettingsPage extends StatelessWidget {
                   ListTile(
                     leading: const Icon(Icons.upload_file),
                     title: Text(strings.exportServers),
-                    subtitle: Text(
-                      sessionUnlocked
-                          ? strings.masterPassphraseUnlocked
-                          : strings.masterPassphraseLocked,
-                    ),
+                    subtitle: Text(strings.exportConfigDescription),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _runExport(context),
                   ),
@@ -1416,11 +1506,7 @@ class SettingsPage extends StatelessWidget {
                   ListTile(
                     leading: const Icon(Icons.download),
                     title: Text(strings.importServers),
-                    subtitle: Text(
-                      sessionUnlocked
-                          ? strings.masterPassphraseUnlocked
-                          : strings.masterPassphraseLocked,
-                    ),
+                    subtitle: Text(strings.importConfigDescription),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _runImport(context),
                   ),
@@ -3359,6 +3445,13 @@ class AppStrings {
     required this.importSucceededTemplate,
     required this.configActionFailedTemplate,
     required this.configPassphrase,
+    required this.exportConfigPassphraseTitle,
+    required this.exportConfigPassphraseHint,
+    required this.importConfigPassphraseTitle,
+    required this.importConfigPassphraseHint,
+    required this.importLegacyConfigPassphraseHint,
+    required this.exportConfigDescription,
+    required this.importConfigDescription,
     required this.confirmPassphrase,
     required this.togglePassphraseVisibility,
     required this.passphraseRequired,
@@ -3510,6 +3603,13 @@ class AppStrings {
   final String importSucceededTemplate;
   final String configActionFailedTemplate;
   final String configPassphrase;
+  final String exportConfigPassphraseTitle;
+  final String exportConfigPassphraseHint;
+  final String importConfigPassphraseTitle;
+  final String importConfigPassphraseHint;
+  final String importLegacyConfigPassphraseHint;
+  final String exportConfigDescription;
+  final String importConfigDescription;
   final String confirmPassphrase;
   final String togglePassphraseVisibility;
   final String passphraseRequired;
@@ -3787,6 +3887,13 @@ class AppStrings {
     importSucceededTemplate: '已导入 {count} 个服务器',
     configActionFailedTemplate: '配置操作失败：{message}',
     configPassphrase: '加密口令',
+    exportConfigPassphraseTitle: '设置配置文件口令',
+    exportConfigPassphraseHint: '该口令仅用于加密导出的配置文件，不会修改本机主口令。请妥善保管，忘记后无法恢复。',
+    importConfigPassphraseTitle: '输入配置文件口令',
+    importConfigPassphraseHint: '请输入导出该文件时使用的口令。',
+    importLegacyConfigPassphraseHint: '这是 V2 配置，请输入导出设备当时使用的主口令。',
+    exportConfigDescription: 'V3 · 独立口令 · scrypt + AES-256-GCM',
+    importConfigDescription: '支持 V3，并兼容导入 V2 配置',
     confirmPassphrase: '确认口令',
     togglePassphraseVisibility: '显示或隐藏口令',
     passphraseRequired: '请输入口令',
@@ -3951,6 +4058,17 @@ class AppStrings {
     importSucceededTemplate: 'Imported {count} servers',
     configActionFailedTemplate: 'Configuration action failed: {message}',
     configPassphrase: 'Passphrase',
+    exportConfigPassphraseTitle: 'Set Config Passphrase',
+    exportConfigPassphraseHint:
+        'This passphrase only encrypts the exported config file and does not change the local master passphrase. Keep it safe; it cannot be recovered.',
+    importConfigPassphraseTitle: 'Enter Config Passphrase',
+    importConfigPassphraseHint:
+        'Enter the passphrase used when this config file was exported.',
+    importLegacyConfigPassphraseHint:
+        'This is a V2 config. Enter the master passphrase used by the exporting device at that time.',
+    exportConfigDescription:
+        'V3 · Independent passphrase · scrypt + AES-256-GCM',
+    importConfigDescription: 'Supports V3 and imports V2 configs',
     confirmPassphrase: 'Confirm Passphrase',
     togglePassphraseVisibility: 'Show or hide passphrase',
     passphraseRequired: 'Enter a passphrase',
