@@ -319,6 +319,33 @@ void main() {
     final decoded = decodeServerQrPayload(payload, 'passphrase');
 
     expect(payload, startsWith(serverQrPayloadPrefix));
+    expect(isServerQrPayloadV3(payload), isFalse);
+    expect(decoded.name, server.name);
+    expect(decoded.baseUrl, server.baseUrl);
+    expect(decoded.secret, server.secret);
+    expect(decoded.authType, server.authType);
+  });
+
+  test('encodes and decodes encrypted V3 server QR payload', () async {
+    const server = WebDavAccount(
+      id: 'server-qr-v3',
+      name: 'V3 NAS',
+      baseUrl: 'https://dav.example.com/files',
+      authType: AuthType.digest,
+      digestAlgorithm: DigestAlgorithm.sha256,
+      username: 'alice',
+      secret: 's3cr3t-v3',
+      defaultPath: '/',
+      allowHttp: false,
+      trustSelfSignedCert: true,
+    );
+
+    final payload = await encodeServerQrPayloadV3(server, 'passphrase');
+    final decoded = await decodeServerQrPayloadV3(payload, 'passphrase');
+
+    expect(payload, startsWith(serverQrPayloadV3Prefix));
+    expect(isServerQrPayloadV3(payload), isTrue);
+    expect(payload, isNot(contains('s3cr3t-v3')));
     expect(decoded.name, server.name);
     expect(decoded.baseUrl, server.baseUrl);
     expect(decoded.secret, server.secret);

@@ -1017,10 +1017,6 @@ class _HomePageState extends State<HomePage> {
       }
       await widget.store.unlockSession(passphrase);
     }
-    final passphrase = widget.store.sessionPassphrase;
-    if (passphrase == null || passphrase.isEmpty) {
-      throw const FormatException('Passphrase is required.');
-    }
     if (!mounted) {
       return null;
     }
@@ -1031,7 +1027,19 @@ class _HomePageState extends State<HomePage> {
     if (content == null || content.isEmpty) {
       return null;
     }
-    final server = decodeServerQrPayload(content, passphrase);
+    final isV3 = isServerQrPayloadV3(content);
+    final qrPassphrase = await _promptConfigPassphrase(
+      title: strings.importQrPassphraseTitle,
+      hint: isV3
+          ? strings.importQrPassphraseHint
+          : strings.importLegacyQrPassphraseHint,
+    );
+    if (qrPassphrase == null || qrPassphrase.isEmpty) {
+      return null;
+    }
+    final server = isV3
+        ? await decodeServerQrPayloadV3(content, qrPassphrase)
+        : decodeServerQrPayload(content, qrPassphrase);
     await _upsertImportedServer(server);
     return strings.importServerSucceeded(server.name);
   }
@@ -1040,13 +1048,17 @@ class _HomePageState extends State<HomePage> {
     await _replaceServers(mergeImportedServers(_servers, [server]));
   }
 
-  Future<String> _exportServerQr(WebDavAccount server) async {
+  Future<String?> _exportServerQr(WebDavAccount server) async {
     final hydratedServer = await _hydrateServerForSession(server);
-    final passphrase = widget.store.sessionPassphrase;
-    if (passphrase == null || passphrase.isEmpty) {
-      throw const FormatException('Passphrase is required.');
+    final qrPassphrase = await _promptConfigPassphrase(
+      title: strings.exportQrPassphraseTitle,
+      hint: strings.exportQrPassphraseHint,
+      confirmation: true,
+    );
+    if (qrPassphrase == null || qrPassphrase.isEmpty) {
+      return null;
     }
-    final payload = encodeServerQrPayload(hydratedServer, passphrase);
+    final payload = await encodeServerQrPayloadV3(hydratedServer, qrPassphrase);
     if (!mounted) {
       return strings.serverQrExported;
     }
@@ -3452,6 +3464,11 @@ class AppStrings {
     required this.importLegacyConfigPassphraseHint,
     required this.exportConfigDescription,
     required this.importConfigDescription,
+    required this.exportQrPassphraseTitle,
+    required this.exportQrPassphraseHint,
+    required this.importQrPassphraseTitle,
+    required this.importQrPassphraseHint,
+    required this.importLegacyQrPassphraseHint,
     required this.confirmPassphrase,
     required this.togglePassphraseVisibility,
     required this.passphraseRequired,
@@ -3610,6 +3627,11 @@ class AppStrings {
   final String importLegacyConfigPassphraseHint;
   final String exportConfigDescription;
   final String importConfigDescription;
+  final String exportQrPassphraseTitle;
+  final String exportQrPassphraseHint;
+  final String importQrPassphraseTitle;
+  final String importQrPassphraseHint;
+  final String importLegacyQrPassphraseHint;
   final String confirmPassphrase;
   final String togglePassphraseVisibility;
   final String passphraseRequired;
@@ -3879,8 +3901,8 @@ class AppStrings {
     importServers: '导入配置',
     exportServerQr: '二维码导出',
     scanServerQr: '扫码导入',
-    serverQrHint: '使用另一台设备上的 Xylos 扫描此二维码，即可导入当前服务器配置。',
-    scanServerQrHint: '将二维码放入取景框内，识别后会自动导入服务器配置。',
+    serverQrHint: '使用另一台设备上的 Xylos 扫描此二维码，并输入二维码口令即可导入服务器配置。',
+    scanServerQrHint: '将二维码放入取景框，识别后将提示输入二维码口令。',
     serverQrExported: '二维码已生成',
     importServerSucceededTemplate: '已导入服务器“{name}”',
     exportSucceededTemplate: '配置已导出到 {path}',
@@ -3894,6 +3916,11 @@ class AppStrings {
     importLegacyConfigPassphraseHint: '这是 V2 配置，请输入导出设备当时使用的主口令。',
     exportConfigDescription: 'V3 · 独立口令 · scrypt + AES-256-GCM',
     importConfigDescription: '支持 V3，并兼容导入 V2 配置',
+    exportQrPassphraseTitle: '设置二维码口令',
+    exportQrPassphraseHint: '该口令仅用于加密此二维码，不会修改本机主口令。请妥善保管。',
+    importQrPassphraseTitle: '输入二维码口令',
+    importQrPassphraseHint: '请输入生成此二维码时使用的口令。',
+    importLegacyQrPassphraseHint: '这是 V1 二维码，请输入生成设备当时使用的主口令。',
     confirmPassphrase: '确认口令',
     togglePassphraseVisibility: '显示或隐藏口令',
     passphraseRequired: '请输入口令',
@@ -4049,9 +4076,9 @@ class AppStrings {
     exportServerQr: 'Export QR Code',
     scanServerQr: 'Scan QR Code',
     serverQrHint:
-        'Scan this QR code with Xylos on another device to import this server configuration.',
+        'Scan this QR code with Xylos on another device and enter the QR passphrase to import this server configuration.',
     scanServerQrHint:
-        'Place the QR code inside the frame. The server configuration will import automatically after detection.',
+        'Place the QR code inside the frame. You will be prompted for its passphrase after detection.',
     serverQrExported: 'QR code generated',
     importServerSucceededTemplate: 'Imported server "{name}"',
     exportSucceededTemplate: 'Configuration exported to {path}',
@@ -4069,6 +4096,14 @@ class AppStrings {
     exportConfigDescription:
         'V3 · Independent passphrase · scrypt + AES-256-GCM',
     importConfigDescription: 'Supports V3 and imports V2 configs',
+    exportQrPassphraseTitle: 'Set QR Passphrase',
+    exportQrPassphraseHint:
+        'This passphrase only encrypts this QR code and does not change the local master passphrase. Keep it safe.',
+    importQrPassphraseTitle: 'Enter QR Passphrase',
+    importQrPassphraseHint:
+        'Enter the passphrase used to generate this QR code.',
+    importLegacyQrPassphraseHint:
+        'This is a V1 QR code. Enter the master passphrase used by the generating device at that time.',
     confirmPassphrase: 'Confirm Passphrase',
     togglePassphraseVisibility: 'Show or hide passphrase',
     passphraseRequired: 'Enter a passphrase',
@@ -4345,7 +4380,7 @@ class ServersPage extends StatelessWidget {
   final AppStrings strings;
   final Future<void> Function(WebDavAccount server) onOpen;
   final Future<WebDavAccount> Function(WebDavAccount server) onHydrateServer;
-  final Future<String> Function(WebDavAccount server) onExportServerQr;
+  final Future<String?> Function(WebDavAccount server) onExportServerQr;
   final Future<String?> Function() onImportServerFromQr;
   final ValueChanged<List<WebDavAccount>> onChanged;
 
@@ -4549,7 +4584,7 @@ class ServersPage extends StatelessWidget {
   ) async {
     try {
       final message = await onExportServerQr(server);
-      if (!context.mounted) {
+      if (message == null || !context.mounted) {
         return;
       }
       _showSnackBar(context, message);

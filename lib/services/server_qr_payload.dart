@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import '../models/webdav_account.dart';
 import 'local_crypto.dart';
+import 'server_config_crypto.dart';
 
 const serverQrPayloadPrefix = 'xylos.server-qr:';
+const serverQrPayloadV3Prefix = 'xylos.server-qr:v3:';
 const _serverQrPayloadFormat = 'xylos.server-qr';
 const _serverQrPayloadHeader = 'xylos.server-qr|1';
 
@@ -36,6 +38,28 @@ String encodeServerQrPayload(WebDavAccount server, String passphrase) {
   return '$serverQrPayloadPrefix${_base64UrlEncodeUtf8(jsonEncode(payload))}';
 }
 
+bool isServerQrPayloadV3(String content) {
+  return content.startsWith(serverQrPayloadV3Prefix);
+}
+
+Future<String> encodeServerQrPayloadV3(
+  WebDavAccount server,
+  String passphrase,
+) async {
+  final plaintext = utf8.encode(
+    jsonEncode({
+      'servers': [
+        {
+          ...server.toJson(),
+          'secret': server.secret,
+        },
+      ],
+    }),
+  );
+  final envelope = await encryptServerConfigV3(plaintext, passphrase);
+  return '$serverQrPayloadV3Prefix${_base64UrlEncodeUtf8(jsonEncode(envelope))}';
+}
+
 WebDavAccount decodeServerQrPayload(String content, String passphrase) {
   if (!content.startsWith(serverQrPayloadPrefix)) {
     throw const FormatException('Unsupported QR code format.');
@@ -62,6 +86,39 @@ WebDavAccount decodeServerQrPayload(String content, String passphrase) {
     throw const FormatException('Invalid decrypted QR payload.');
   }
   final rawServer = decrypted['server'];
+  if (rawServer is! Map) {
+    throw const FormatException('Missing server payload.');
+  }
+  return WebDavAccount.fromJson(Map<String, Object?>.from(rawServer));
+}
+
+Future<WebDavAccount> decodeServerQrPayloadV3(
+  String content,
+  String passphrase,
+) async {
+  if (!content.startsWith(serverQrPayloadV3Prefix)) {
+    throw const FormatException('Unsupported QR code format.');
+  }
+  final encoded = content.substring(serverQrPayloadV3Prefix.length).trim();
+  if (encoded.isEmpty) {
+    throw const FormatException('Empty QR code payload.');
+  }
+  final decoded = jsonDecode(_base64UrlDecodeUtf8(encoded));
+  if (decoded is! Map<String, Object?>) {
+    throw const FormatException('Invalid QR code payload.');
+  }
+  if (serverConfigEnvelopeVersion(decoded) != serverConfigV3Version) {
+    throw const FormatException('Unsupported QR code format.');
+  }
+  final decrypted = await decryptServerConfig(decoded, passphrase);
+  if (decrypted is! Map<String, Object?>) {
+    throw const FormatException('Invalid decrypted QR payload.');
+  }
+  final rawServers = decrypted['servers'];
+  if (rawServers is! List || rawServers.length != 1) {
+    throw const FormatException('Invalid QR server payload.');
+  }
+  final rawServer = rawServers.single;
   if (rawServer is! Map) {
     throw const FormatException('Missing server payload.');
   }
